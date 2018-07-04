@@ -3918,9 +3918,11 @@ var CreasePattern = (function (_super) {
         this.clean();
         return this;
     };
-    CreasePattern.prototype.fold = function (face) {
+    CreasePattern.prototype.fold = function (face, keepMarks) {
         this.clean();
-        var copyCP = this.copy().removeAllMarks();
+        var copyCP = this.copy();
+        if (keepMarks == undefined || keepMarks == false)
+            copyCP.removeAllMarks();
         if (face == undefined) {
             var bounds = copyCP.bounds();
             face = copyCP.nearest(bounds.origin.x + bounds.size.width * 0.5, bounds.origin.y + bounds.size.height * 0.5).face;
@@ -3956,9 +3958,11 @@ var CreasePattern = (function (_super) {
         }, this);
         return copyCP.exportFoldFile();
     };
-    CreasePattern.prototype.foldSVG = function (face) {
+    CreasePattern.prototype.foldSVG = function (face, keepMarks) {
         this.clean();
-        var copyCP = this.copy().removeAllMarks();
+        var copyCP = this.copy();
+        if (keepMarks == undefined || keepMarks == false)
+            copyCP.removeAllMarks();
         if (face == undefined) {
             var bounds = copyCP.bounds();
             face = copyCP.nearest(bounds.origin.x + bounds.size.width * 0.5, bounds.origin.y + bounds.size.height * 0.5).face;
