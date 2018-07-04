@@ -3644,7 +3644,7 @@ var CreasePattern = (function (_super) {
     };
     CreasePattern.prototype.creaseRayRepeat = function (ray, target) {
         return new Polyline()
-            .rayReflectRepeat(ray, this.edges, target)
+            .rayReflectRepeat(ray, this.edges.filter(function (e) { return e.orientation != CreaseDirection.mark; }, this), target)
             .edges()
             .map(function (edge) {
             return this.crease(edge);
