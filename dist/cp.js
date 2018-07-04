@@ -1809,11 +1809,12 @@ var Graph = (function () {
     };
     Graph.prototype.removeDuplicateEdges = function () {
         var count = 0;
-        for (var i = 0; i < this.edges.length - 1; i++) {
-            for (var j = this.edges.length - 1; j > i; j--) {
+        for (var i = this.edges.length - 1; i > 0; i--){
+            for (var j = i - 1; j > 0; j--) {
                 if (this.edges[i].isSimilarToEdge(this.edges[j])) {
                     this.edges.splice(j, 1);
                     count += 1;
+                    --i;
                 }
             }
         }
