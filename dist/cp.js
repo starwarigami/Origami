@@ -3356,6 +3356,12 @@ var Crease = (function (_super) {
     Crease.prototype.mountain = function () { this.orientation = CreaseDirection.mountain; return this; };
     Crease.prototype.valley = function () { this.orientation = CreaseDirection.valley; return this; };
     Crease.prototype.border = function () { this.orientation = CreaseDirection.border; return this; };
+    Crease.prototype.reflectionMatrix = function () {
+        if (this.orientation == CreaseDirection.border || this.orientation == CreaseDirection.mark)
+            return new Matrix().identity();
+        else
+            return new Matrix().reflection(this.nodes[1].subtract(this.nodes[0]), this.nodes[0]);
+    };
     Crease.prototype.creaseToEdge = function (edge) { return this.graph.creaseEdgeToEdge(this, edge); };
     return Crease;
 }(PlanarEdge));
