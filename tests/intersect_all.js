@@ -9,9 +9,9 @@ intersectAll.drawIntersections = function(line, ray, edge){
 	this.intersectionLayer.activate();
 	this.intersectionLayer.removeChildren();
 	var intersections = [
-		intersectionLineRay(line, ray),
-		intersectionLineEdge(line, edge),
-		intersectionRayEdge(ray, edge)];
+		line.interscetion(ray),
+		line.interscetion(edge),
+		ray.intersection(edge)];
 	var intersectParts = [
 		[line, ray],
 		[line, edge],
@@ -32,7 +32,7 @@ intersectAll.drawIntersections = function(line, ray, edge){
 			var arcPoints = [];
 			fourPoints.forEach(function(el, i){
 				var nextI = (i+1)%fourPoints.length;
-				var b = bisectVectors(el.subtract(intersection), fourPoints[nextI].subtract(intersection))[0];
+				var b = el.subtract(intersection).bisect(fourPoints[nextI].subtract(intersection))[0];
 				var arcMidPoint = b.normalize().scale(interRadius).add(intersection);
 				var thesePoints = [ fourPoints[i],
 				                    arcMidPoint,

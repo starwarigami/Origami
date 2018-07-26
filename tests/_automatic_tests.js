@@ -4,7 +4,7 @@ function testClockwiseInteriorAngles(){
 		var b = Math.random()*Math.PI;
 		var vecA = new XY(Math.cos(a), Math.sin(a));
 		var vecB = new XY(Math.cos(b), Math.sin(b));
-		var computedVec = clockwiseInteriorAngle(vecA, vecB);
+		var computedVec = vecA.clockwiseInteriorAngle(vecB);
 		var computedAngle = clockwiseInteriorAngleRadians(a,b);
 		var related = computedVec == computedAngle;
 		if(!epsilonEqual(computedVec, computedAngle)){ return false; }
@@ -14,9 +14,9 @@ function testClockwiseInteriorAngles(){
 
 
 if(testClockwiseInteriorAngles()){
-	document.body.innerHTML += "passed: clockwiseInteriorAngle and clockwiseInteriorAngleRadians";
+	document.body.innerHTML += "passed: XY.clockwiseInteriorAngle and clockwiseInteriorAngleRadians";
 } else{
-	document.body.innerHTML += "clockwiseInteriorAngle and clockwiseInteriorAngleRadians are not in sync";
+	document.body.innerHTML += "XY.clockwiseInteriorAngle and clockwiseInteriorAngleRadians are not in sync";
 }
 
 
