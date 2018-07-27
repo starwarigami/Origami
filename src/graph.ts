@@ -126,9 +126,9 @@ class GraphEdge{
 	adjacentEdges():GraphEdge[]{
 		return this.graph.edges
 		.filter(function(el:GraphEdge) {  return el !== this &&
-		                (el.nodes[0] === this.nodes[0] || 
-		                 el.nodes[0] === this.nodes[1] || 
-		                 el.nodes[1] === this.nodes[0] || 
+		                (el.nodes[0] === this.nodes[0] ||
+		                 el.nodes[0] === this.nodes[1] ||
+		                 el.nodes[1] === this.nodes[0] ||
 		                 el.nodes[1] === this.nodes[1]); }, this)
 	}
 	/** Get the two nodes of this edge
@@ -197,7 +197,7 @@ class GraphEdge{
 	commonNodeWithEdge(otherEdge:GraphEdge):GraphNode{
 		// only for adjacent edges
 		if(this === otherEdge) return undefined;
-		if(this.nodes[0] === otherEdge.nodes[0] || this.nodes[0] === otherEdge.nodes[1]) 
+		if(this.nodes[0] === otherEdge.nodes[0] || this.nodes[0] === otherEdge.nodes[1])
 			return this.nodes[0];
 		if(this.nodes[1] === otherEdge.nodes[0] || this.nodes[1] === otherEdge.nodes[1])
 			return this.nodes[1];
@@ -212,7 +212,7 @@ class GraphEdge{
 	uncommonNodeWithEdge(otherEdge:GraphEdge):GraphNode{
 		// only for adjacent edges
 		if(this === otherEdge) return undefined;
-		if(this.nodes[0] === otherEdge.nodes[0] || this.nodes[0] === otherEdge.nodes[1]) 
+		if(this.nodes[0] === otherEdge.nodes[0] || this.nodes[0] === otherEdge.nodes[1])
 			return this.nodes[1];
 		if(this.nodes[1] === otherEdge.nodes[0] || this.nodes[1] === otherEdge.nodes[1])
 			return this.nodes[0];
@@ -287,7 +287,7 @@ class Graph{
 	 */
 	addEdge(edge:GraphEdge):GraphEdge{
 		if(edge.nodes[0] === undefined ||
-		   edge.nodes[1] === undefined || 
+		   edge.nodes[1] === undefined ||
 		   edge.nodes[0].graph !== this ||
 		   edge.nodes[1].graph !== this ){ return undefined; }
 		edge.graph = this;
@@ -348,8 +348,8 @@ class Graph{
 	// REMOVE PARTS (TARGETS KNOWN)
 	///////////////////////////////////////////////
 
-	/** Removes all nodes and edges, returning the graph to it's original state 
-	 * @example 
+	/** Removes all nodes and edges, returning the graph to it's original state
+	 * @example
 	 * graph.clear()
 	 */
 	clear():Graph{
@@ -360,7 +360,7 @@ class Graph{
 
 	/** Remove an edge
 	 * @returns {GraphClean} number of edges removed
-	 * @example 
+	 * @example
 	 * var result = graph.removeEdge(edge)
 	 * // result.edges should equal 1
 	 */
@@ -375,13 +375,13 @@ class Graph{
 	 * @param {GraphNode} node1 first node
 	 * @param {GraphNode} node2 second node
 	 * @returns {GraphClean} number of edges removed. in the case of an unclean graph, there may be more than one
-	 * @example 
+	 * @example
 	 * var result = graph.removeEdgeBetween(node1, node2)
 	 * // result.edges should be >= 1
 	 */
 	removeEdgeBetween(node1:GraphNode, node2:GraphNode):GraphClean{
 		var edgesLength = this.edges.length;
-		this.edges = this.edges.filter(function(el){ 
+		this.edges = this.edges.filter(function(el){
 			return !((el.nodes[0] === node1 && el.nodes[1] === node2) ||
 			         (el.nodes[0] === node2 && el.nodes[1] === node1) );
 		});
@@ -392,7 +392,7 @@ class Graph{
 	/** Remove a node and any edges that connect to it
 	 * @param {GraphNode} node the node that will be removed
 	 * @returns {GraphClean} number of nodes and edges removed
-	 * @example 
+	 * @example
 	 * var result = graph.removeNode(node)
 	 * // result.node will be 1
 	 * // result.edges will be >= 0
@@ -412,7 +412,7 @@ class Graph{
 	 * @param {GraphNode} node1 first node to merge, this node will persist
 	 * @param {GraphNode} node2 second node to merge, this node will be removed
 	 * @returns {GraphClean} 1 removed node, newly duplicate and circular edges will be removed
-	 * @example 
+	 * @example
 	 * var result = graph.mergeNodes(node1, node2)
 	 * // result.node will be 1
 	 * // result.edges will be >= 0
@@ -445,7 +445,7 @@ class Graph{
 
 	/** Removes any node that isn't a part of an edge
 	 * @returns {GraphClean} the number of nodes removed
-	 * @example 
+	 * @example
 	 * var result = graph.removeIsolatedNodes()
 	 * // result.node will be >= 0
 	 */
@@ -469,7 +469,7 @@ class Graph{
 
 	/** Remove all edges that contain the same node at both ends
 	 * @returns {GraphClean} the number of edges removed
-	 * @example 
+	 * @example
 	 * var result = graph.removeCircularEdges()
 	 * // result.edges will be >= 0
 	 */
@@ -482,17 +482,21 @@ class Graph{
 
 	/** Remove edges that are similar to another edge
 	 * @returns {GraphClean} the number of edges removed
-	 * @example 
+	 * @example
 	 * var result = graph.removeDuplicateEdges()
 	 * // result.edges will be >= 0
 	 */
 	removeDuplicateEdges():GraphClean{
 		var count = 0;
-		for(var i = 0; i < this.edges.length-1; i++){
-			for(var j = this.edges.length-1; j > i; j--){
+		var spliceIndex = [];
+		for(var i = this.edges.length - 1; i > 0; i--){
+			for(var j = i - 1; j > 0; j--){
 				if(this.edges[i].isSimilarToEdge(this.edges[j])){
+					// console.log("duplicate edge found");
 					this.edges.splice(j, 1);
+					spliceIndex.push(j);
 					count += 1;
+					--i;
 				}
 			}
 		}
@@ -502,7 +506,7 @@ class Graph{
 
 	/** Graph specific clean function: removes circular and duplicate edges, refreshes .index. Only modifies edges array.
 	 * @returns {GraphClean} the number of edges removed
-	 * @example 
+	 * @example
 	 * var result = graph.cleanGraph()
 	 * // result.edges will be >= 0
 	 */
@@ -511,12 +515,15 @@ class Graph{
 		this.nodeArrayDidChange();
 		// should we remove isolated nodes as a part of clean()?
 		// return this.removeDuplicateEdges().join(this.removeCircularEdges()).join(this.removeIsolatedNodes());
-		return this.removeDuplicateEdges().join(this.removeCircularEdges());
+		// return this.removeDuplicateEdges().join(this.removeCircularEdges());
+		var dups = this.removeDuplicateEdges();
+		var circ = this.removeCircularEdges();
+		return dups.join(circ);
 	}
 
 	/** Clean calls cleanGraph(), gets overwritten when subclassed. Removes circular and duplicate edges, refreshes .index. Only modifies edges array.
 	 * @returns {GraphClean} the number of edges removed
-	 * @example 
+	 * @example
 	 * var result = graph.clean()
 	 * // result.edges will be >= 0
 	 */
@@ -525,10 +532,10 @@ class Graph{
 	///////////////////////////////////////////////
 	// GET PARTS
 	///////////////////////////////////////////////
-	
+
 	/** Searches for an edge that contains the 2 nodes supplied in the function call. Will return first edge found, if graph isn't clean it will miss any subsequent duplicate edges.
 	 * @returns {GraphEdge} edge, if exists. undefined, if no edge connects the nodes (not adjacent)
-	 * @example 
+	 * @example
 	 * var edge = graph.getEdgeConnectingNodes(node1, node2)
 	 */
 	getEdgeConnectingNodes(node1:GraphNode, node2:GraphNode):GraphEdge{
@@ -545,7 +552,7 @@ class Graph{
 
 	/** Searches for all edges that contains the 2 nodes supplied in the function call. This is suitable for unclean graphs, graphs with duplicate edges.
 	 * @returns {GraphEdge[]} array of edges, if any exist. empty array if no edge connects the nodes (not adjacent)
-	 * @example 
+	 * @example
 	 * var array = graph.getEdgesConnectingNodes(node1, node2)
 	 */
 	getEdgesConnectingNodes(node1:GraphNode, node2:GraphNode):GraphEdge[]{
@@ -560,7 +567,7 @@ class Graph{
 	///////////////////////////////////////////////
 
 	/** Deep-copy the contents of this graph and return it as a new object
-	 * @returns {Graph} 
+	 * @returns {Graph}
 	 * @example
 	 * var copiedGraph = graph.copy()
 	 */
@@ -584,7 +591,7 @@ class Graph{
 	}
 
 	/** Convert this graph into an array of connected graphs, attempting one Hamilton path if possible. Edges are arranged in each graph.edges with connected edges next to one another.
-	 * @returns {Graph[]} 
+	 * @returns {Graph[]}
 	 */
 	connectedGraphs():Graph[]{
 		var cp = this.copy();
@@ -614,7 +621,7 @@ class Graph{
 				var newEdge = <GraphEdge>(<any>Object).assign(new cp.edgeType(graph,undefined,undefined), nextEdge);
 				newEdge.nodes = [graph.nodes[node.index], graph.nodes[nextNode.index] ];
 				graph.addEdge( newEdge );
-				// update this graph with 
+				// update this graph with
 				node.cache['adj'] -= 1;
 				nextNode.cache['adj'] -= 1;
 				cp.edges = cp.edges.filter(function(el){ return el !== nextEdge; });
@@ -627,7 +634,7 @@ class Graph{
 			graphs.push(graph);
 		}
 		return graphs;
-	}	
+	}
 
 	nodeArrayDidChange(){for(var i=0;i<this.nodes.length;i++){this.nodes[i].index=i;}}
 	edgeArrayDidChange(){for(var i=0;i<this.edges.length;i++){this.edges[i].index=i;}}
