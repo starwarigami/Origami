@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css" rel="stylesheet">
+<style>
+html, body {
+	height:100%;
+	width:100%;
+	margin:0px;
+	background-color: #FFF;
+	display:flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+.row{
+	text-align: center;
+}
+canvas[resize]{
+	width:40vmax;
+	height:40vmax;
+	margin:2vmax;
+}
+.toolbar{
+	display:flex;
+	flex-direction: column;
+	text-align:center;
+}
+</style>
+</head>
+<body>
+
+	<div class="row">
+		<canvas id="paperCanvas" resize></canvas>
+		<canvas id="foldCanvas" resize></canvas>
+	</div>
+	<div class="toolbar">
+		<form name="menu">
+			<label for="operationCombo">Operation</label>
+			<select name="operationCombo" size="1" onChange="onChangeOperation()">
+				<option value="b">Basic Fold</option>
+				<option value="rf">Reverse Fold</option>
+				<option value="re">Rabbit Ear</option>
+				<option value="dre">Double Rabbit Ear</option>
+				<option value="os">Open Sink</option>
+				<option value="cs">Closed Sink</option>
+				<option value="sw">Swivel Fold</option>
+				<option value="sq">Squash Fold</option>
+			</select>
+			<label for="directionCombo">Direction</label>
+			<select name="directionCombo" size="1" onChange="onChangeDirection()">
+				<option value="c">Crease</option>
+				<option value="v">Valley</option>
+				<option value="m">Mountain</option>
+			</select>
+			<label for="axiomCombo">Axiom</label>
+			<select name="axiomCombo" size="1" onChange="onChangeAxiom()">
+				<option value="lt2p">LT2P</option>
+				<option value="pop">POP</option>
+				<option value="lol">LOL</option>
+				<option value="pltp">PLTP</option>
+				<option value="poltp">POLTP</option>
+				<option value="2po2l">2PO2L</option>
+				<option value="polpl">POLPL</option>
+				<option value="loptp">LOPTP</option>
+				<option value="2lo2p">2LO2P</option>
+				<option value="loppl">LOPPL</option>
+			</select>
+			<label for="snapCombo">Snap</label>
+			<select name="snapCombo" size="1" onChange="onChangeSnap()">
+				<option value="p">Node</option>
+				<option value="m">Midpoint</option>
+				<option value="e">Edge</option>
+				<option value="n">None</option>
+			</select><br>
+			<input type="button" name="undoBtn" value="Revert" onClick="revert()">
+			<input type="button" name="undoBtn" value="Undo" onClick="undo()">
+			<input type="button" name="redoBtn" value="Redo" onClick="redo()">
+		</form>
+	</div>
+
+
+</body>
+
+<script type="text/javascript" src="../lib/cubicSolver.js"></script>
+<script type="text/javascript" src="../cp.js"></script>
+<script type="text/javascript" src="../lib/paper-full.min.js"></script>
+<script type="text/javascript" src="../cp.paperjs.js"></script>
+<script type="text/javascript" src="diagramatica.js"></script>
+</html>

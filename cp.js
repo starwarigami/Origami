@@ -1810,14 +1810,9 @@ var Graph = (function () {
     };
     Graph.prototype.removeDuplicateEdges = function () {
         var count = 0;
-<<<<<<< HEAD:dist/cp.js
-        for (var i = this.edges.length - 1; i > 0; i--){
-            for (var j = i - 1; j > 0; j--) {
-=======
         var spliceIndex = [];
-        for (var i = 0; i < this.edges.length - 1; i++) {
-            for (var j = this.edges.length - 1; j > i; j--) {
->>>>>>> master:cp.js
+        for (var i = this.edges.length - 1; i > 0; i--) {
+            for (var j = i - 1; j > 0; j--) {
                 if (this.edges[i].isSimilarToEdge(this.edges[j])) {
                     this.edges.splice(j, 1);
                     spliceIndex.push(j);
@@ -3391,10 +3386,12 @@ var Crease = (function (_super) {
     Crease.prototype.valley = function () { this.orientation = CreaseDirection.valley; return this; };
     Crease.prototype.border = function () { this.orientation = CreaseDirection.border; return this; };
     Crease.prototype.reflectionMatrix = function () {
-        if (this.orientation == CreaseDirection.border || this.orientation == CreaseDirection.mark)
+        if (this.orientation == CreaseDirection.border || this.orientation == CreaseDirection.mark) {
             return new Matrix().identity();
-        else
+        }
+        else {
             return new Matrix().reflection(this.nodes[1].subtract(this.nodes[0]), this.nodes[0]);
+        }
     };
     Crease.prototype.creaseToEdge = function (edge) { return this.graph.creaseEdgeToEdge(this, edge); };
     return Crease;
@@ -3840,7 +3837,7 @@ var CreasePattern = (function (_super) {
     };
     CreasePattern.prototype.creaseRayRepeat = function (ray, target) {
         return new Polyline()
-            .rayReflectRepeat(ray, this.edges.filter(function (e) { return e.orientation != CreaseDirection.mark; }, this), target)
+            .rayReflectRepeat(ray, this.edges.filter(function (e) { return e.orientation != CreaseDirection.mark; }), target)
             .edges()
             .map(function (edge) {
             return this.crease(edge);
@@ -4101,8 +4098,9 @@ var CreasePattern = (function (_super) {
     CreasePattern.prototype.fold = function (face, keepMarks) {
         this.clean();
         var copyCP = this.copy();
-        if (keepMarks == undefined || keepMarks == false)
+        if (keepMarks == undefined || keepMarks == false) {
             copyCP.removeAllMarks();
+        }
         if (face == undefined) {
             var bounds = copyCP.bounds();
             face = copyCP.nearest(bounds.origin.x + bounds.size.width * 0.5, bounds.origin.y + bounds.size.height * 0.5).face;
@@ -4141,8 +4139,9 @@ var CreasePattern = (function (_super) {
     CreasePattern.prototype.foldSVG = function (face, keepMarks) {
         this.clean();
         var copyCP = this.copy();
-        if (keepMarks == undefined || keepMarks == false)
+        if (keepMarks == undefined || keepMarks == false) {
             copyCP.removeAllMarks();
+        }
         if (face == undefined) {
             var bounds = copyCP.bounds();
             face = copyCP.nearest(bounds.origin.x + bounds.size.width * 0.5, bounds.origin.y + bounds.size.height * 0.5).face;

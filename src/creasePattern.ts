@@ -330,6 +330,13 @@ class Crease extends PlanarEdge{
 	mountain(){ this.orientation = CreaseDirection.mountain; return this;}
 	valley()  { this.orientation = CreaseDirection.valley; return this;}
 	border()  { this.orientation = CreaseDirection.border; return this;}
+	//override reflection matrix to stop reflections in non oriented creases
+	reflectionMatrix():Matrix {
+		if (this.orientation == CreaseDirection.border || this.orientation == CreaseDirection.mark) {
+		  return new Matrix().identity();
+		}
+		else{ return new Matrix().reflection(this.nodes[1].subtract(this.nodes[0]), this.nodes[0]); }
+	}
 	// AXIOM 3
 	creaseToEdge(edge:Crease):Crease[]{return this.graph.creaseEdgeToEdge(this, edge);}
 }
@@ -902,7 +909,7 @@ class CreasePattern extends PlanarGraph{
 
 	creaseRayRepeat(ray:Ray, target?:XY):Crease[]{
 		return new Polyline()
-			.rayReflectRepeat(ray, this.edges, target)
+			.rayReflectRepeat(ray, this.edges.filter(function (e:Crease) { return e.orientation != CreaseDirection.mark; }), target)
 			.edges()
 			.map(function(edge:Edge){
 				return this.crease(edge);
@@ -1286,9 +1293,10 @@ class CreasePattern extends PlanarGraph{
 		return this;
 	}
 
-	fold(face?:PlanarFace):object{
+	fold(face?:PlanarFace, keepMarks?:boolean):object{
 		this.clean();
-		var copyCP = this.copy().removeAllMarks();
+		var copyCP = this.copy();
+		if (keepMarks == undefined || keepMarks == false) { copyCP.removeAllMarks(); }
 		if(face == undefined){
 			var bounds = copyCP.bounds();
 			face = copyCP.nearest(bounds.origin.x + bounds.size.width * 0.5,
@@ -1323,9 +1331,10 @@ class CreasePattern extends PlanarGraph{
 		return copyCP.exportFoldFile();
 	}
 
-	foldSVG(face?:PlanarFace):string{
+	foldSVG(face?:PlanarFace, keepMarks?:boolean):string{
 		this.clean();
-		var copyCP = this.copy().removeAllMarks();
+		var copyCP = this.copy();
+		if (keepMarks == undefined || keepMarks == false) { copyCP.removeAllMarks(); }
 		if(face == undefined){
 			var bounds = copyCP.bounds();
 			face = copyCP.nearest(bounds.origin.x + bounds.size.width * 0.5,
