@@ -21,7 +21,7 @@ function onChangeOperation()
 {
 	var combo = document.menu.operationCombo;
 	operation = combo.options[combo.selectedIndex].value;
-	
+
 	revert();
 }
 
@@ -29,7 +29,7 @@ function onChangeDirection()
 {
 	var combo = document.menu.directionCombo;
 	var direction = combo.options[combo.selectedIndex].value;
-	
+
 	switch (direction)
 	{
 		case "c":
@@ -45,7 +45,7 @@ function onChangeAxiom()
 {
 	var combo = document.menu.axiomCombo;
 	axiom = combo.options[combo.selectedIndex].value;
-	
+
 	switch (axiom)
 	{
 		case "lt2p":
@@ -64,8 +64,8 @@ function onChangeAxiom()
 			numAnchors = 3;
 			break;
 		}
-	}	
-	
+	}
+
 	revert();
 }
 
@@ -80,7 +80,7 @@ function revert()
 	anchors = [undefined];
 	if (origami.cp.faces.length == 1)
 		anchors.push(origami.cp.boundary);
-	
+
 	origami.cp = steps[0];
 	origami.draw();
 	updateFoldedView();
@@ -98,7 +98,7 @@ function updateFoldedView()
 {
 	folded.cp = origami.cp.copy();
 	folded.cp.clean();
-	
+
 	folded.draw( folded.cp.faces[0], true );
 }
 
@@ -112,10 +112,10 @@ function getPoint(anchor)
 
 	if (anchor.snap == "e")
 		return new Line(anchor.point, anchor.edge.vector().rotate90()).intersection(anchor.edge.infiniteLine());
-	
+
 	if (anchor.snap == "n")
 		return anchor.point;
-	
+
 	return undefined;
 }
 
@@ -125,13 +125,13 @@ function getLine(anchor)
 }
 
 function propogate(ray)
-{	
+{
 	var creases = new Polyline()
 		.rayReflectRepeat(ray, origami.cp.edges.filter(function (e) { return e.orientation != CreaseDirection.mark; }, this))
 		.edges();
-				
+
 	var o = orientation;
-		
+
 	return creases.map
 		(
 			function (edge)
@@ -154,16 +154,16 @@ function coPlanarFaces(face, edgesWalked)
 	var faces = [face];
 	if (edgesWalked == undefined)
 		edgesWalked = [];
-	
+
 	face.edges.forEach
 	(
 		function(e)
 		{
 			if (edgesWalked.indexOf(e) == -1)
-			{					
+			{
 				edgesWalked.push(e);
 				if (e.orientation == CreaseDirection.mark)
-				{	
+				{
 					e.adjacentFaces().forEach
 					(
 						function(f)
@@ -178,7 +178,7 @@ function coPlanarFaces(face, edgesWalked)
 		},
 		this
 	);
-		
+
 	return faces;
 }
 
@@ -193,7 +193,7 @@ function coPlanarPolygon(face)
 			(
 				function(n)
 				{
-					if (nodes.indexOf(n) == -1)	
+					if (nodes.indexOf(n) == -1)
 						nodes.push(n);
 				},
 				this
@@ -201,8 +201,8 @@ function coPlanarPolygon(face)
 		},
 		this
 	);
-			
-	return ConvexPolygon.convexHull(nodes);
+
+	return new ConvexPolygon().convexHull(nodes);
 }
 
 function highlightNode(p)
@@ -210,11 +210,11 @@ function highlightNode(p)
 	if (p != undefined)
 	{
 		origami.nodeLayer.activate();
-		
+
 		node = new origami.scope.Shape.Circle({ center: [p.x, p.y] });
 		Object.assign(node, origami.style.node);
 	}
-	
+
 	return node;
 }
 
@@ -223,12 +223,12 @@ function highlightEdge(e)
 	if (e != undefined)
 	{
 		origami.edgeLayer.activate();
-		
+
 		edge = new origami.scope.Path({segments: e.nodes.map(function(el){ return [el.x, el.y]; }), closed: false });
 		Object.assign(edge, origami.styleForCrease(e.orientation));
 		edge.strokeColor = origami.styles.byrne.yellow;
 	}
-	
+
 	return edge;
 }
 
@@ -237,9 +237,9 @@ function highlightFace(f)
 	if (f != undefined)
 	{
 		origami.faceLayer.activate();
-		
+
 		var nodes = f instanceof ConvexPolygon ? f.nodes() : f.nodes;
-		
+
 		face = new origami.scope.Path({segments: nodes.map(function(el){ return [el.x, el.y]; }), closed:true});
 		//face.scale(origami.style.face.scale, f.centroid());
 		Object.assign(face, origami.style.face);
@@ -254,7 +254,7 @@ function highlightAnchors()
 		var anchor = anchors[i];
 		if (anchor == undefined)
 			return;
-		
+
 		if (anchor instanceof ConvexPolygon)
 			highlightFace(anchor);
 		else if (anchor instanceof GraphEdge)
@@ -273,23 +273,22 @@ function cleanHighlights()
 
 
 origami.onMouseMove = function(event)
-{	
+{
 	if (anchors.length == numAnchors + 1 && anchors[0] != undefined)
 	{
-		console.log('copy')
 		origami.cp = steps[0].copy();
 		origami.draw();
 	}
 	else
 		cleanHighlights();
-	
+
 	anchors.shift();
 
 	// get the nearest parts of the crease pattern to the mouse point
 	var nearest = origami.cp.nearest(event.point);
 	nearest.point = event.point;
 	nearest.snap = snap;
-	
+
 	if (anchors.length == 0)
 	{
 		if (nearest.face != undefined)
@@ -300,30 +299,30 @@ origami.onMouseMove = function(event)
 	else
 	{
 		var folds = undefined;
-		
+
 		switch (axiom)
 		{
 			case "lt2p":
 			case "pop":
 			{
 				anchors.unshift(getPoint(nearest));
-				
+
 				if (anchors.length == 3)
 				{
 					if (axiom ==  "lt2p")
-						folds = [Line.axiom1(anchors[1],  anchors[0])];
+						folds = [origami.cp.axiom1(anchors[1], anchors[0])];
 					else if (axiom == "pop")
-						folds = [Line.axiom2(anchors[1], anchors[0])];
+						folds = [origami.cp.axiom2(anchors[1], anchors[0])];
 				}
 				break;
 			}
 			case "lol":
-			{				
+			{
 				anchors.unshift(getLine(nearest));
-				
+
 				if (anchors.length == 3)
 				{
-					folds = Line.axiom3(anchors[1], anchors[0]);
+					folds = origami.cp.axiom3(anchors[1], anchors[0]);
 				}
 				break;
 			}
@@ -336,8 +335,8 @@ origami.onMouseMove = function(event)
 				else if (anchors.length == 2)
 				{
 					anchors.unshift(getLine(nearest));
-					
-					folds = [Line.axiom4(anchors[1], anchors[0])];
+
+					folds = [origami.cp.axiom4(anchors[1], anchors[0])];
 				}
 				break;
 			}
@@ -358,20 +357,20 @@ origami.onMouseMove = function(event)
 					if (axiom == "polpl")
 					{
 						anchors.unshift(getLine(nearest));
-						
-						folds = [Line.axiom7(anchors[2], anchors[1], anchors[0])];
+
+						folds = [origami.cp.axiom7(anchors[2], anchors[1], anchors[0])];
 					}
 					else
 					{
 						anchors.unshift(getPoint(nearest));
-						
+
 						if (axiom ==  "poltp")
-							folds = Line.axiom5(anchors[2], anchors[1], anchors[0]);
+							folds = origami.cp.axiom5(anchors[2], anchors[1], anchors[0]);
 					}
 				}
 				else if (anchors.length == 4)
 				{
-					folds = Line.axiom6(anchors[3], anchors[2], anchors[1], anchors[0]);
+					folds = origami.cp.axiom6(anchors[3], anchors[2], anchors[1], anchors[0]);
 				}
 				break;
 			}
@@ -392,48 +391,46 @@ origami.onMouseMove = function(event)
 					if (axiom ==  "loptp")
 					{
 						anchors.unshift(getPoint(nearest));
-						
-						folds = Line.axiom5(anchors[1], anchors[2], anchors[0]);
+
+						folds = origami.cp.axiom5(anchors[1], anchors[2], anchors[0]);
 					}
 					else
 					{
 						anchors.unshift(getLine(nearest));
-						
+
 						if (axiom == "loppl")
-							folds = [Line.axiom7(anchors[1], anchors[2], anchors[0])];
+							folds = [origami.cp.axiom7(anchors[1], anchors[2], anchors[0])];
 					}
 				}
 				else if (anchors.length == 4)
 				{
-					folds = Line.axiom6(anchors[2], anchors[3], anchors[0], anchors[1]);
+					folds = origami.cp.axiom6(anchors[2], anchors[3], anchors[0], anchors[1]);
 				}
 				break;
 			}
 		}
-		
+
 		if (folds && folds.length > 0 && folds[0] != undefined)
 		{
 			var p = anchors[numAnchors];
-			
-			console.log(numAnchors)
-			
+
 			var clippedEdge = p.clipLine(folds[0]);
 			if(clippedEdge == undefined && folds.length > 1 && folds[1] != undefined)
 				clippedEdge = p.clipLine(folds[1])
 			if (clippedEdge)
-			{	
+			{
 				var midPoint = clippedEdge.midpoint();
-				
+
 				propogate(new Ray(midPoint, clippedEdge.vector()));
 				propogate(new Ray(midPoint, clippedEdge.vector().rotate180()));
 			}
-			
+
 			origami.cp.clean();
 			origami.draw();
 			updateFoldedView();
 		}
 	}
-		
+
 	highlightAnchors();
 }
 
@@ -441,10 +438,9 @@ origami.onMouseUp = function(event)
 {
 	if (anchors[0] == undefined)
 		return;
-	
+
 	if (anchors.length == numAnchors + 1)
 	{
-		console.log('hello')
 		steps.unshift(origami.cp.copy());
 		anchors = [];
 	}
@@ -456,12 +452,11 @@ origami.reset = function()
 	origami.cp = new CreasePattern();
 	anchors = [undefined, origami.cp.boundary];
 	steps = [origami.cp.copy()];
-			
-	origami.draw();			
+
+	origami.draw();
 	updateFoldedView();
-		
+
 	highlightAnchors();
 }
 
 origami.reset();
-
