@@ -10,10 +10,10 @@
 
 "use strict";
 
-//////////////////////////// TYPE CHECKING //////////////////////////// 
+//////////////////////////// TYPE CHECKING ////////////////////////////
 // function isValidPoint(point:XY):boolean{return(point!==undefined&&!isNaN(point.x)&&!isNaN(point.y));}
 // function isValidNumber(n:number):boolean{return(n!==undefined&&!isNaN(n)&&!isNaN(n));}
-/////////////////////////////// FUNCTION INPUT INTERFACE /////////////////////////////// 
+/////////////////////////////// FUNCTION INPUT INTERFACE ///////////////////////////////
 function gimme1XY(a:any, b?:any):XY{
 	// input is 1 XY, or 2 numbers
 	// if(a instanceof XY){ return a; }
@@ -48,7 +48,7 @@ function gimme1Line(a:any, b?:any, c?:any, d?:any):Line{
 	// input is 4 numbers
 	if(isValidNumber(d)){ return new Line(a,b,c,d); }
 	// input is 1 line-like object with points in a nodes[] array
-	if(a.nodes instanceof Array && 
+	if(a.nodes instanceof Array &&
 	        a.nodes.length > 0 &&
 	        isValidPoint(a.nodes[1])){
 		return new Line(a.nodes[0].x,a.nodes[0].y,a.nodes[1].x,a.nodes[1].y);
@@ -171,14 +171,7 @@ class FoldSequence{
 
 class CreaseSector extends PlanarSector{
 	bisect():CPRay{
-		var vectors = this.vectors();
-		var angles = vectors.map(function(el){ return Math.atan2(el.y, el.x); });
-		while(angles[0] < 0){ angles[0] += Math.PI*2; }
-		while(angles[1] < 0){ angles[1] += Math.PI*2; }
-		var interior = counterClockwiseInteriorAngleRadians(angles[0], angles[1]);
-		var bisected = angles[0] + interior*0.5;
-		var ray = new Ray(new XY(this.origin.x, this.origin.y), new XY(Math.cos(bisected), Math.sin(bisected)));
-		return new CPRay(<CreasePattern>this.origin.graph, ray);
+		return new CPRay(<CreasePattern>this.origin.graph, new Sector(this.origin, this.endpoints).bisect());
 	}
 	/** This will search for an angle which if an additional crease is made will satisfy Kawasaki's theorem */
 	kawasakiCollapse():CPRay{
@@ -195,7 +188,7 @@ class CreaseSector extends PlanarSector{
 		// iterate over sectors not including this one, add them to their sums
 		for(var i = 0; i < junction.sectors.length-1; i++){
 			var index = (i+foundIndex+1) % junction.sectors.length;
-			if(i % 2 == 0){ sumEven += junction.sectors[index].angle(); } 
+			if(i % 2 == 0){ sumEven += junction.sectors[index].angle(); }
 			else { sumOdd += junction.sectors[index].angle(); }
 		}
 		var dEven = Math.PI - sumEven;
@@ -268,7 +261,7 @@ class CreaseJunction extends PlanarJunction{
 		var sumOdd = 0;
 		for(var i = 0; i < this.sectors.length-1; i++){
 			var index = (i+foundIndex+1) % this.sectors.length;
-			if(i % 2 == 0){ sumEven += this.sectors[index].angle(); } 
+			if(i % 2 == 0){ sumEven += this.sectors[index].angle(); }
 			else { sumOdd += this.sectors[index].angle(); }
 		}
 		var dEven = Math.PI - sumEven;
@@ -316,6 +309,7 @@ class Crease extends PlanarEdge{
 
 	graph:CreasePattern;
 	orientation:CreaseDirection;
+	angle:number;
 	// how it was made
 	newMadeBy:MadeBy;
 	madeBy:Fold;
@@ -323,15 +317,18 @@ class Crease extends PlanarEdge{
 	constructor(graph:CreasePattern, node1:CreaseNode, node2:CreaseNode){
 		super(graph, node1, node2);
 		this.orientation = CreaseDirection.mark;
+		this.angle = 0;
 		this.newMadeBy = new MadeBy();
 		this.newMadeBy.endPoints = [node1, node2];
 	};
-	mark()    { this.orientation = CreaseDirection.mark; return this;}
-	mountain(){ this.orientation = CreaseDirection.mountain; return this;}
-	valley()  { this.orientation = CreaseDirection.valley; return this;}
-	border()  { this.orientation = CreaseDirection.border; return this;}
+	mark()    { this.orientation = CreaseDirection.mark; this.angle = 0; return this;}
+	mountain(degrees?:number){ this.orientation = CreaseDirection.mountain; this.angle = isValidNumber(degrees) ? Math.PI*degrees/180 : Math.PI; return this;}
+	valley(degrees?:number)  { this.orientation = CreaseDirection.valley; this.angle = isValidNumber(degrees) ? Math.PI*degrees/180 : Math.PI; return this;}
+	border()  { this.orientation = CreaseDirection.border; this.angle = 0; return this;}
 	// AXIOM 3
 	creaseToEdge(edge:Crease):Crease[]{return this.graph.creaseEdgeToEdge(this, edge);}
+	//override method of Edge to use crease angle by default
+	rotationMatrix(angle?:number):Matrix{ return new Edge(this).rotationMatrix(isValidNumber(angle) ? angle : this.angle); }
 }
 class CreaseFace extends PlanarFace{
 	rabbitEar():Crease[]{
@@ -446,7 +443,7 @@ class CreasePattern extends PlanarGraph{
 		var points = pointArray.map(function(p){ return gimme1XY(p); },this);
 		// check if the first point is duplicated again at the end of the array
 		if( points[0].equivalent(points[points.length-1]) ){ points.pop(); }
-		if(pointsSorted === true){ this.boundary.setEdgesFromPoints(points); } 
+		if(pointsSorted === true){ this.boundary.setEdgesFromPoints(points); }
 		else{ this.boundary.convexHull(points); }
 		this.cleanBoundary();
 		this.clean();
@@ -464,7 +461,7 @@ class CreasePattern extends PlanarGraph{
 
 	///////////////////////////////////////////////////////////////
 	// SYMMETRY
-	
+
 	noSymmetry():CreasePattern{
 		this.symmetryLine = undefined;
 		return this;
@@ -531,7 +528,7 @@ class CreasePattern extends PlanarGraph{
 		else {
 			var k1 = line1.nodes[0].x;
 		}
-		
+
 		var p2 = point2.x;
 		var q2 = point2.y;
 		//find equation of line in form y = mx+h (or x = k)
@@ -542,18 +539,18 @@ class CreasePattern extends PlanarGraph{
 		else {
 			var k2 = line2.nodes[0].x;
 		}
-		
+
 		//equation of perpendicular bisector between (p,q) and (u, v) {passes through ((u+p)/2,(v+q)/2) with slope -(u-p)/(v-q)}
 		//y = (-2(u-p)x + (v^2 -q^2 + u^2 - p^2))/2(v-q)
-		
+
 		//equation of perpendicular bisector between (p,q) and (u, mu+h)
 		// y = (-2(u-p)x + (m^2+1)u^2 + 2mhu + h^2-p^2-q^2)/(2mu + 2(h-q))
-		
+
 		//equation of perpendicular bisector between (p,q) and (k, v)
 		//y = (-2(k-p)x + (v^2 + k^2-p^2-q^2))/2(v-q)
-		
+
 		//if the two bisectors are the same line, then the gradients and intersections of both lines are equal
-		
+
 		//case 1: m1 and m2 both defined
 		if (m1 !== undefined && m2 !== undefined) {
 			//1: (u1-p1)/(m1u1+(h1 -q1)) = (u2-p2)/(m2u2+(h2-q2))
@@ -565,19 +562,19 @@ class CreasePattern extends PlanarGraph{
 			//cn = hn^2-pn^2-qn^2
 			//dn = 2mn
 			//en = 2(hn-qn)
-			
+
 			var a1 = m1*m1 + 1;
 			var b1 = 2*m1*h1;
 			var c1 = h1*h1 - p1*p1 - q1*q1;
 			var d1 = 2*m1;
 			var e1 = 2*(h1 - q1);
-			
+
 			var a2 = m2*m2 + 1;
 			var b2 = 2*m2*h2;
 			var c2 =  h2*h2 - p2*p2 - q2*q2;
 			var d2 = 2*m2;
 			var e2 = 2*(h2 - q2);
-			
+
 			//rearrange 1 to express u1 in terms of u2
 			//u1 = (a0u2+b0)/(c0u2+d0)
 			//where
@@ -589,9 +586,9 @@ class CreasePattern extends PlanarGraph{
 			var b0 = p1*(h2 - q2) - p2*(h1 - q1);
 			var c0 = m2 - m1;
 			var d0 = m1*p2 + (h2 - q2);
-		
-			var z = m1*p1 + (h1 - q1);		
-			//subsitute u1 into 2 and solve for u2:	
+
+			var z = m1*p1 + (h1 - q1);
+			//subsitute u1 into 2 and solve for u2:
 		}
 		else if (m1 === undefined && m2 === undefined) {
 			//1: (k1-p1)/(v1 -q1)) = (k2-p2)/(v2-q2)
@@ -601,19 +598,19 @@ class CreasePattern extends PlanarGraph{
 			//cn = kn^2-pn^2-qn^2
 			//dn = 2
 			//en = -2qn
-			
+
 			a1 = 1;
 			b1 = 0;
 			c1 = k1*k1 - p1*p1 - q1*q1;
 			d1 = 2;
 			e1 = -2*q1;
-			
+
 			a2 = 1;
 			b2 = 0;
 			c2 = k2*k2 - p2*p2 - q2*q2;
 			d2 = 2;
 			e2 = -2*q2;
-			
+
 			//rearrange 1 to express v1 in terms of v2
 			//v1 = (a0v2+b0)/d0
 			//where
@@ -623,10 +620,10 @@ class CreasePattern extends PlanarGraph{
 			a0 = k1 - p1;
 			b0 = q1*(k2 - p2) - q2*(k1 - p1);
 			c0 = 0;
-			d0 = k2 - p2;		
-		
+			d0 = k2 - p2;
+
 			z = a0;
-			//subsitute v1 into 2 and solve for v2:	
+			//subsitute v1 into 2 and solve for v2:
 		}
 		else {
 			if (m1 === undefined) {
@@ -642,9 +639,9 @@ class CreasePattern extends PlanarGraph{
 				var h1 = h2;
 				h2 = undefined;
 				var k2 = k1;
-				k1 = undefined; 
+				k1 = undefined;
 			}
-			
+
 			//1: (u1-p1)/(m1u1+(h1 -q1))  = (k2-p2)/(v2-q2)
 			//and
 			//2: (a1u1^2+b1u1+ c1)/(d1u1+e1) =  (v2^2+c2)/(d2u2+e2)
@@ -657,19 +654,19 @@ class CreasePattern extends PlanarGraph{
 			//c2 = k2^2-p2^2-q2^2
 			//d2 = 2
 			//e2 = -2q2
-			
+
 			a1 = m1*m1 + 1;
 			b1 = 2*m1*h1;
 			c1 = h1*h1 - p1*p1 - q1*q1;
 			d1 = 2*m1;
 			e1 = 2*(h1 - q1);
-			
+
 			a2 = 1;
 			b2 = 0;
 			c2 = k2*k2 - p2*p2 - q2*q2;
 			d2 = 2;
 			e2 = -2*q2;
-			
+
 			//rearrange 1 to express u1 in terms of v2
 			//u1 = (a0v2+b0)/(v2+d0)
 			//where
@@ -680,11 +677,11 @@ class CreasePattern extends PlanarGraph{
 			b0 = (h1 - q1)*(k2 - p2) - p1*q2;
 			c0 = 1;
 			d0 = -m1*(k2 - p2) - q2;
-			
+
 			z = m1*p1 + (h1 - q1);
-			//subsitute u1 into 2 and solve for v2:	
-		}	
-			
+			//subsitute u1 into 2 and solve for v2:
+		}
+
 		//subsitute into 3:
 		//4: (a3x^2 + b3x + c3)/(d3x^2 + e3x + f3) = (a2x^2 + b2x + c2)/(d2x + e2)
 		//where
@@ -694,14 +691,14 @@ class CreasePattern extends PlanarGraph{
 		//d3 =c0(d1a0+e1c0) = d2c0z
 		//e3 = d0(d1a0+e1c0)+c0(d1b+e1d) = (d2d0+e2c0)z
 		//f3 = d0(d1b0+e1d0) = e2d0z
-		
+
 		var a3 = a1*a0*a0 + b1*a0*c0 + c1*c0*c0;
 		var b3 = 2*a1*a0*b0 + b1*(a0*d0 + b0*c0) + 2*c1*c0*d0;
 		var c3 = a1*b0*b0 + b1*b0*d0 + c1*d0*d0;
 		var d3 = d2*c0*z
 		var e3 = (d2*d0 + e2*c0)*z;
 		var f3 = e2*d0*z;
-		
+
 		//rearrange to gain the following quartic
 		//5: (d2x+e2)(a4x^3+b4x^2+c4x+d) = 0
 		//where
@@ -709,24 +706,24 @@ class CreasePattern extends PlanarGraph{
 		//b4 = (a2d0+b2c0)z-a3
 		//c4 = (b2d0+c2c0)z-b3
 		//d4 = c2d0z-c3
-		
+
 		var a4 = a2*c0*z;
 		var b4 = (a2*d0 + b2*c0) * z - a3;
 		var c4 = (b2*d0 + c2*c0) * z - b3;
 		var d4 =  c2*d0*z - c3;
-		
+
 		//find the roots
 		var solution = getCubicSolution(a4,b4,c4,d4);
 
 		var roots = [];
-		for (var i = 0; i < solution.length; ++i) {	
+		for (var i = 0; i < solution.length; ++i) {
 			if (solution[i].GetY() == 0 && roots.indexOf(solution[i].GetX()) == -1)
 				roots.push(solution[i].GetX())
 		}
-		
-		var lines = [];		
+
+		var lines = [];
 		if (roots != undefined && roots.length > 0) {
-			for (var i = 0; i <roots.length; ++i) {
+			for (var i = 0; i < roots.length; ++i) {
 				if (m1 !== undefined && m2 !== undefined) {
 					var u2 = roots[i];
 					var v2 = m2*u2 + h2;
@@ -745,34 +742,34 @@ class CreasePattern extends PlanarGraph{
 					//u1 = (a0*v2 + b0)/(v2 + d0);
 					//v1 =  m1*u1 + h1;
 				}
-				
-				//The midpoints may be the same point, so cannot be used to determine the crease 
+
+				//The midpoints may be the same point, so cannot be used to determine the crease
 				//lines.push(this.axiom1(new XY((u1 + p1) / 2, (v1 + q1) / 2), new XY((u2 + p2) / 2, (v2 + q2) / 2)));
-				
+
 				if (v2 != q2) {
 					//F(x) = mx + h = -((u-p)/(v-q))x +(v^2 -q^2 + u^2 - p^2)/2(v-q)
 					var mF = -1*(u2 - p2)/(v2 - q2);
 					var hF = (v2*v2 - q2*q2 + u2*u2 - p2*p2) / (2 * (v2 - q2));
-					
+
 					lines.push(this.axiom1(new XY(0, hF), new XY(1, mF + hF)));
 				}
 				else {
 					//G(y) = k
 					var kG = (u2 + p2)/2;
-					
+
 					lines.push(this.axiom1(new XY(kG, 0), new XY(kG, 1)));
 				}
 			}
 		}
 		return lines;
 	}
-	axiom7(point, ontoLine, perp):CPLine{		
+	axiom7(point, ontoLine, perp):CPLine{
 		var newLine = new Line(point, new Edge(perp).vector());
 		var intersection = newLine.intersection(new Edge(ontoLine).infiniteLine());
 		if(intersection === undefined){ return undefined; }
 		return this.axiom2(point, intersection);
 	};
-	
+
 	newCreaseBetweenNodes(a:CreaseNode, b:CreaseNode):Crease{
 		this.unclean = true;
 		return <Crease>this.newEdge(a, b);
@@ -790,8 +787,9 @@ class CreasePattern extends PlanarGraph{
 	private creaseSymmetry(ax:number, ay:number, bx:number, by:number):Crease{
 		if(this.symmetryLine === undefined){ return undefined; }
 		// todo, improve this whole situation
-		var ra = new XY(ax, ay).reflect(this.symmetryLine);
-		var rb = new XY(bx, by).reflect(this.symmetryLine);
+		var p:Plane = new Plane(this.symmetryLine.point, this.symmetryLine.direction.cross(new Line().zAxis()))
+		var ra = new XY(ax, ay).reflect(p);
+		var rb = new XY(bx, by).reflect(p);
 		return <Crease>this.newPlanarEdge(ra.x, ra.y, rb.x, rb.y);
 	}
 
@@ -809,7 +807,7 @@ class CreasePattern extends PlanarGraph{
 		if(edge === undefined){ return; }
 		return this.newCrease(edge.nodes[0].x, edge.nodes[0].y, edge.nodes[1].x, edge.nodes[1].y);
 	}
-	/** Create a crease 
+	/** Create a crease
 	 * @arg 4 numbers, 2 XY points, or 1 Edge, Ray, or Line
 	 * @returns {Crease} pointer to the Crease
 	 */
@@ -927,8 +925,7 @@ class CreasePattern extends PlanarGraph{
 		return newCrease;
 	}
 	// AXIOM 2
-	creasePointToPoint(a:any, b:any, c?:any, d?:any):Crease{ = new Fold(this.creasePointToPoint, gimme2XY(a,b,c,d));
-		return newCrease
+	creasePointToPoint(a:any, b:any, c?:any, d?:any):Crease{
 		var l = this.axiom2(a, b, c, d);
 		if(l === undefined){ return; }
 		var newCrease = l.crease();
@@ -938,7 +935,7 @@ class CreasePattern extends PlanarGraph{
 	// AXIOM 3
 	creaseEdgeToEdge(one:Crease, two:Crease):Crease[]{
 		return this.axiom3(one, two)
-			.map(function(line){ return line.crease() }, this)
+			.map(function(line){ return line.crease(); }, this)
 			.filter(function(edge){ return edge !== undefined; }, this);
 	}
 	// AXIOM 4
@@ -994,7 +991,7 @@ class CreasePattern extends PlanarGraph{
 			.map(function(el){
 				var origin = a.nodes[0].lerp(b.nodes[0], el);
 				var vector = u.lerp(v, el);
-				return this.boundary.clipLine( new Line(origin, vector) ); 
+				return this.boundary.clipLine( new Line(origin, vector) );
 			},this)
 			.filter(function(el){ return el !== undefined; },this)
 			.map(function(el){ return this.newCrease(el.nodes[0].x, el.nodes[0].y, el.nodes[1].x, el.nodes[1].y) },this);
@@ -1088,7 +1085,7 @@ class CreasePattern extends PlanarGraph{
 			return crease.length();
 		});
 		// prevent too much deviation from length
-		
+
 		var dup = this.copy();
 
 		var forces = [];
@@ -1109,7 +1106,7 @@ class CreasePattern extends PlanarGraph{
 					// maybe store angle so that we can keep track of it between rounds
 					var randomAngle = Math.PI*2 / 12 * n; // wrap around to make sure it's random
 					var radius = Math.random() * rating;
-					var move = new XY( 0.05*radius * Math.cos(randomAngle), 
+					var move = new XY( 0.05*radius * Math.cos(randomAngle),
 					                   0.05*radius * Math.sin(randomAngle));
 					dup.nodes[i].x += move.x;
 					dup.nodes[i].y += move.y;
@@ -1142,7 +1139,7 @@ class CreasePattern extends PlanarGraph{
 		// 	dup.nodes[i].y += forces[i].y;
 		// }
 
-		// for(var i = 0; i < this.nodes.length; i++){ 
+		// for(var i = 0; i < this.nodes.length; i++){
 		// 	this.nodes[i].x = dup.nodes[i].x;
 		// 	this.nodes[i].y = dup.nodes[i].y;
 		// }
@@ -1175,7 +1172,7 @@ class CreasePattern extends PlanarGraph{
 					// maybe store angle so that we can keep track of it between rounds
 					var randomAngle = Math.random()*Math.PI*20; // wrap around to make sure it's random
 					var radius = Math.random() * rating;
-					var move = new XY( 0.05*radius * Math.cos(randomAngle), 
+					var move = new XY( 0.05*radius * Math.cos(randomAngle),
 					                   0.05*radius * Math.sin(randomAngle));
 					this.nodes[i].x += move.x;
 					this.nodes[i].y += move.y;
@@ -1280,7 +1277,7 @@ class CreasePattern extends PlanarGraph{
 		for(var i = this.edges.length-1; i >= 0; i--){
 			if(this.edges[i].orientation === CreaseDirection.mark){
 				// this.removeEdge(this.edges[i]);
-				i -= this.removeEdge(this.edges[i]).edges.total - 1; 
+				i -= this.removeEdge(this.edges[i]).edges.total - 1;
 			}
 		}
 		this.clean();
@@ -1305,7 +1302,7 @@ class CreasePattern extends PlanarGraph{
 		faces.push({'face':tree.obj, 'matrix':tree['matrix']});
 		function recurse(node){
 			node.children.forEach(function(child){
-				var local = child.obj.commonEdges(child.parent.obj).shift().reflectionMatrix();
+				var local = child.obj.commonEdges(child.parent.obj).shift().rotationMatrix();
 				child['matrix'] = child.parent['matrix'].mult(local);
 				faces.push({'face':child.obj, 'matrix':child['matrix']});
 				recurse(child);
@@ -1339,7 +1336,7 @@ class CreasePattern extends PlanarGraph{
 		faces.push({'face':tree.obj, 'matrix':tree['matrix']});
 		function recurse(node){
 			node.children.forEach(function(child){
-				var local = child.obj.commonEdges(child.parent.obj).shift().reflectionMatrix();
+				var local = child.obj.commonEdges(child.parent.obj).shift().rotationMatrix();
 				child['matrix'] = child.parent['matrix'].mult(local);
 				faces.push({'face':child.obj, 'matrix':child['matrix']});
 				recurse(child);
@@ -1400,7 +1397,7 @@ class CreasePattern extends PlanarGraph{
 	}
 
 	importFoldFile(file:object, epsilon?:number):CreasePattern{
-		if(file === undefined || 
+		if(file === undefined ||
 		   file["vertices_coords"] === undefined ||
 		   file["edges_vertices"] === undefined){ return undefined; }
 
@@ -1458,7 +1455,7 @@ class CreasePattern extends PlanarGraph{
 			.filter(function(el){ return el.orientation === CreaseDirection.border; },this)
 			.map(function(el){
 				return [
-					new XY(el.nodes[0].x, el.nodes[0].y), 
+					new XY(el.nodes[0].x, el.nodes[0].y),
 					new XY(el.nodes[1].x, el.nodes[1].y)
 				]
 			},this)
@@ -1561,7 +1558,7 @@ class CreasePattern extends PlanarGraph{
 	}
 
 	/** This will deep-copy the contents of this graph and return it as a new object
-	 * @returns {CreasePattern} 
+	 * @returns {CreasePattern}
 	 */
 	copy():CreasePattern{
 		this.nodeArrayDidChange();
@@ -1586,7 +1583,7 @@ class CreasePattern extends PlanarGraph{
 		for(var i = 0; i < this.faces.length; i++){
 			var f = new PlanarFace(g);
 			g.faces.push(f);
-			f.graph = g; 
+			f.graph = g;
 			f.index = i;
 			// (<any>Object).assign(f, this.faces[i]);
 			if(this.faces[i] !== undefined){
@@ -1621,5 +1618,3 @@ class CreasePattern extends PlanarGraph{
 		return g;
 	}
 }
-
-
