@@ -3746,11 +3746,11 @@ var CreasePattern = (function (_super) {
                 var q3 = q1;
                 q1 = q2;
                 q2 = q3;
-                var m1 = m2;
+                m1 = m2;
                 m2 = undefined;
-                var h1 = h2;
+                h1 = h2;
                 h2 = undefined;
-                var k2 = k1;
+                k2 = k1;
                 k1 = undefined;
             }
             a1 = m1 * m1 + 1;
@@ -3976,7 +3976,7 @@ var CreasePattern = (function (_super) {
     CreasePattern.prototype.creaseThroughPoints = function (a, b, c, d) {
         var l = this.axiom1(a, b, c, d);
         if (l === undefined) {
-            return;
+            return undefined;
         }
         var newCrease = l.crease();
         return newCrease;
@@ -3984,7 +3984,7 @@ var CreasePattern = (function (_super) {
     CreasePattern.prototype.creasePointToPoint = function (a, b, c, d) {
         var l = this.axiom2(a, b, c, d);
         if (l === undefined) {
-            return;
+            return undefined;
         }
         var newCrease = l.crease();
         return newCrease;
@@ -3997,7 +3997,7 @@ var CreasePattern = (function (_super) {
     CreasePattern.prototype.creasePerpendicularThroughPoint = function (line, point) {
         var l = this.axiom4(line, point);
         if (l === undefined) {
-            return;
+            return undefined;
         }
         var newCrease = l.crease();
         return newCrease;
@@ -4015,7 +4015,7 @@ var CreasePattern = (function (_super) {
     CreasePattern.prototype.creasePerpendicularPointOntoLine = function (point, ontoLine, perp) {
         var l = this.axiom7(point, ontoLine, perp);
         if (l === undefined) {
-            return;
+            return undefined;
         }
         var newCrease = l.crease();
         return newCrease;

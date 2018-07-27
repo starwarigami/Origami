@@ -497,12 +497,12 @@ class CreasePattern extends PlanarGraph{
 	edge(a:any, b?:any, c?:any, d?:any):CPEdge{ return new CPEdge(this, gimme1Edge(a,b,c,d)); }
 	//AXIOMS
 	axiom1(a:any, b:any, c:?any, d:?any):CPLine{
-		var points = gimme2XY(a, b, c, d);
+		var points:[XY,XY] = gimme2XY(a, b, c, d);
 		if(points === undefined){ return undefined; }
 		return new CPLine(this, new Line(points[0], points[1].subtract(points[0])));
 	}
 	axiom2(a:any, b:any, c:?any, d:?any):CPLine{
-		var points = gimme2XY(a, b, c, d);
+		var points:[XY,XY] = gimme2XY(a, b, c, d);
 		return new CPLine(this, new Line(points[1].midpoint(points[0]), points[1].subtract(points[0]).rotate90()));
 	}
 	axiom3(one:Crease, two:Crease):CPLine{
@@ -511,33 +511,33 @@ class CreasePattern extends PlanarGraph{
 	}
 	axiom4(line:Crease, point:XY):CPLine{ return new CPLine(this, new Line(point, new Edge(line).vector().rotate90())); }
 	axiom5(origin:XY, point:XY, line:CPLine){
-		var radius = Math.sqrt(Math.pow(origin.x - point.x, 2) + Math.pow(origin.y - point.y, 2));
-		var intersections = new Circle(origin, radius).intersection(new Edge(line).infiniteLine());
-		var lines = [];
-		for(var i = 0; i < intersections.length; i++){ lines.push(this.axiom2(point, intersections[i])); }
+		var radius:number = Math.sqrt(Math.pow(origin.x - point.x, 2) + Math.pow(origin.y - point.y, 2));
+		var intersections:XY[] = new Circle(origin, radius).intersection(new Edge(line).infiniteLine());
+		var lines:CPLine[] = [];
+		for(var i:int = 0; i < intersections.length; i++){ lines.push(this.axiom2(point, intersections[i])); }
 		return lines;
 	}
 	axiom6(point1:XY, point2:XY, line1:Crease, line2:Crease):CPLine{
-		var p1 = point1.x;
-		var q1 = point1.y;
+		var p1:number = point1.x;
+		var q1:number = point1.y;
 		//find equation of line in form y = mx+h (or x = k)
 		if (line1.nodes[1].x - line1.nodes[0].x != 0) {
-			var m1 = (line1.nodes[1].y - line1.nodes[0].y) / ((line1.nodes[1].x - line1.nodes[0].x));
-			var h1 = line1.nodes[0].y - m1 * line1.nodes[0].x;
+			var m1:number = (line1.nodes[1].y - line1.nodes[0].y) / ((line1.nodes[1].x - line1.nodes[0].x));
+			var h1:number = line1.nodes[0].y - m1 * line1.nodes[0].x;
 		}
 		else {
-			var k1 = line1.nodes[0].x;
+			var k1:number = line1.nodes[0].x;
 		}
 
-		var p2 = point2.x;
-		var q2 = point2.y;
+		var p2:number = point2.x;
+		var q2:number = point2.y;
 		//find equation of line in form y = mx+h (or x = k)
 		if (line2.nodes[1].x - line2.nodes[0].x != 0) {
-			var m2 = (line2.nodes[1].y - line2.nodes[0].y) / (line2.nodes[1].x - line2.nodes[0].x);
-			var h2 = line2.nodes[0].y - m2 * line2.nodes[0].x;
+			var m2:number = (line2.nodes[1].y - line2.nodes[0].y) / (line2.nodes[1].x - line2.nodes[0].x);
+			var h2:number = line2.nodes[0].y - m2 * line2.nodes[0].x;
 		}
 		else {
-			var k2 = line2.nodes[0].x;
+			var k2:number = line2.nodes[0].x;
 		}
 
 		//equation of perpendicular bisector between (p,q) and (u, v) {passes through ((u+p)/2,(v+q)/2) with slope -(u-p)/(v-q)}
@@ -563,17 +563,17 @@ class CreasePattern extends PlanarGraph{
 			//dn = 2mn
 			//en = 2(hn-qn)
 
-			var a1 = m1*m1 + 1;
-			var b1 = 2*m1*h1;
-			var c1 = h1*h1 - p1*p1 - q1*q1;
-			var d1 = 2*m1;
-			var e1 = 2*(h1 - q1);
+			var a1:number = m1*m1 + 1;
+			var b1:number = 2*m1*h1;
+			var c1:number = h1*h1 - p1*p1 - q1*q1;
+			var d1:number = 2*m1;
+			var e1:number = 2*(h1 - q1);
 
-			var a2 = m2*m2 + 1;
-			var b2 = 2*m2*h2;
-			var c2 =  h2*h2 - p2*p2 - q2*q2;
-			var d2 = 2*m2;
-			var e2 = 2*(h2 - q2);
+			var a2:number = m2*m2 + 1;
+			var b2:number = 2*m2*h2;
+			var c2:number =  h2*h2 - p2*p2 - q2*q2;
+			var d2:number = 2*m2;
+			var e2:number = 2*(h2 - q2);
 
 			//rearrange 1 to express u1 in terms of u2
 			//u1 = (a0u2+b0)/(c0u2+d0)
@@ -582,12 +582,12 @@ class CreasePattern extends PlanarGraph{
 			//b0 = p2(q1-h1)-p1(q2-h2)
 			//c0= m2-m1
 			//d0= m1p2-(q2-h2)
-			var a0 = m2*p1 + (h1 - q1);
-			var b0 = p1*(h2 - q2) - p2*(h1 - q1);
-			var c0 = m2 - m1;
-			var d0 = m1*p2 + (h2 - q2);
+			var a0:number = m2*p1 + (h1 - q1);
+			var b0:number = p1*(h2 - q2) - p2*(h1 - q1);
+			var c0:number = m2 - m1;
+			var d0:number = m1*p2 + (h2 - q2);
 
-			var z = m1*p1 + (h1 - q1);
+			var z:number = m1*p1 + (h1 - q1);
 			//subsitute u1 into 2 and solve for u2:
 		}
 		else if (m1 === undefined && m2 === undefined) {
@@ -628,17 +628,17 @@ class CreasePattern extends PlanarGraph{
 		else {
 			if (m1 === undefined) {
 				//swap the order of the points and lines
-				var p3 = p1;
+				var p3:number = p1;
 				p1 = p2;
 				p2 = p3;
-				var q3 = q1;
+				var q3:number = q1;
 				q1 = q2;
 				q2 = q3;
-				var m1 = m2;
+				m1 = m2;
 				m2 = undefined;
-				var h1 = h2;
+				h1 = h2;
 				h2 = undefined;
-				var k2 = k1;
+				k2 = k1;
 				k1 = undefined;
 			}
 
@@ -692,12 +692,12 @@ class CreasePattern extends PlanarGraph{
 		//e3 = d0(d1a0+e1c0)+c0(d1b+e1d) = (d2d0+e2c0)z
 		//f3 = d0(d1b0+e1d0) = e2d0z
 
-		var a3 = a1*a0*a0 + b1*a0*c0 + c1*c0*c0;
-		var b3 = 2*a1*a0*b0 + b1*(a0*d0 + b0*c0) + 2*c1*c0*d0;
-		var c3 = a1*b0*b0 + b1*b0*d0 + c1*d0*d0;
-		var d3 = d2*c0*z
-		var e3 = (d2*d0 + e2*c0)*z;
-		var f3 = e2*d0*z;
+		var a3:number = a1*a0*a0 + b1*a0*c0 + c1*c0*c0;
+		var b3:number = 2*a1*a0*b0 + b1*(a0*d0 + b0*c0) + 2*c1*c0*d0;
+		var c3:number = a1*b0*b0 + b1*b0*d0 + c1*d0*d0;
+		var d3:number = d2*c0*z
+		var e3:number = (d2*d0 + e2*c0)*z;
+		var f3:number = e2*d0*z;
 
 		//rearrange to gain the following quartic
 		//5: (d2x+e2)(a4x^3+b4x^2+c4x+d) = 0
@@ -707,26 +707,26 @@ class CreasePattern extends PlanarGraph{
 		//c4 = (b2d0+c2c0)z-b3
 		//d4 = c2d0z-c3
 
-		var a4 = a2*c0*z;
-		var b4 = (a2*d0 + b2*c0) * z - a3;
-		var c4 = (b2*d0 + c2*c0) * z - b3;
-		var d4 =  c2*d0*z - c3;
+		var a4:number = a2*c0*z;
+		var b4:number = (a2*d0 + b2*c0) * z - a3;
+		var c4:number = (b2*d0 + c2*c0) * z - b3;
+		var d4:number =  c2*d0*z - c3;
 
 		//find the roots
 		var solution = getCubicSolution(a4,b4,c4,d4);
 
-		var roots = [];
-		for (var i = 0; i < solution.length; ++i) {
+		var roots:number[] = [];
+		for (var i:int = 0; i < solution.length; ++i) {
 			if (solution[i].GetY() == 0 && roots.indexOf(solution[i].GetX()) == -1)
 				roots.push(solution[i].GetX())
 		}
 
-		var lines = [];
+		var lines:CPLine[] = [];
 		if (roots != undefined && roots.length > 0) {
-			for (var i = 0; i < roots.length; ++i) {
+			for (var i:int = 0; i < roots.length; ++i) {
 				if (m1 !== undefined && m2 !== undefined) {
-					var u2 = roots[i];
-					var v2 = m2*u2 + h2;
+					var u2:number = roots[i];
+					var v2:number = m2*u2 + h2;
 					//var u1 = (a0*u2 + b0)/(c0*u2 + d0);
 					//var v1 = m1*u1 + h1;
 				}
@@ -748,14 +748,14 @@ class CreasePattern extends PlanarGraph{
 
 				if (v2 != q2) {
 					//F(x) = mx + h = -((u-p)/(v-q))x +(v^2 -q^2 + u^2 - p^2)/2(v-q)
-					var mF = -1*(u2 - p2)/(v2 - q2);
-					var hF = (v2*v2 - q2*q2 + u2*u2 - p2*p2) / (2 * (v2 - q2));
+					var mF:number = -1*(u2 - p2)/(v2 - q2);
+					var hF:number = (v2*v2 - q2*q2 + u2*u2 - p2*p2) / (2 * (v2 - q2));
 
 					lines.push(this.axiom1(new XY(0, hF), new XY(1, mF + hF)));
 				}
 				else {
 					//G(y) = k
-					var kG = (u2 + p2)/2;
+					var kG:number = (u2 + p2)/2;
 
 					lines.push(this.axiom1(new XY(kG, 0), new XY(kG, 1)));
 				}
@@ -764,8 +764,8 @@ class CreasePattern extends PlanarGraph{
 		return lines;
 	}
 	axiom7(point, ontoLine, perp):CPLine{
-		var newLine = new Line(point, new Edge(perp).vector());
-		var intersection = newLine.intersection(new Edge(ontoLine).infiniteLine());
+		var newLine:Line = new Line(point, new Edge(perp).vector());
+		var intersection:XY = newLine.intersection(new Edge(ontoLine).infiniteLine());
 		if(intersection === undefined){ return undefined; }
 		return this.axiom2(point, intersection);
 	};
@@ -918,51 +918,51 @@ class CreasePattern extends PlanarGraph{
 
 	// AXIOM 1
 	creaseThroughPoints(a:any, b:any, c?:any, d?:any):Crease{
-		var l = this.axiom1(a, b, c, d);
-		if(l === undefined){ return; }
-		var newCrease = l.crease();
+		var l:CPLine = this.axiom1(a, b, c, d);
+		if(l === undefined){ return undefined; }
+		var newCrease:Crease = l.crease();
 		// newCrease.madeBy = new Fold(this.creaseThroughPoints, gimme2XY(a,b,c,d));
 		return newCrease;
 	}
 	// AXIOM 2
 	creasePointToPoint(a:any, b:any, c?:any, d?:any):Crease{
-		var l = this.axiom2(a, b, c, d);
-		if(l === undefined){ return; }
-		var newCrease = l.crease();
+		var l:CPLine = this.axiom2(a, b, c, d);
+		if(l === undefined){ return undefined; }
+		var newCrease:Crease = l.crease();
 		// newCrease.madeBy = new Fold(this.creasePointToPoint, gimme2XY(a,b,c,d));
 		return newCrease;
 	}
 	// AXIOM 3
 	creaseEdgeToEdge(one:Crease, two:Crease):Crease[]{
 		return this.axiom3(one, two)
-			.map(function(line){ return line.crease(); }, this)
-			.filter(function(edge){ return edge !== undefined; }, this);
+			.map(function(line:CPLine){ return line.crease(); }, this)
+			.filter(function(edge:Crease){ return edge !== undefined; }, this);
 	}
 	// AXIOM 4
 	creasePerpendicularThroughPoint(line:Crease, point:XY):Crease{
-		var l = this.axiom4(line, point);
-		if(l === undefined){ return; }
-		var newCrease = l.crease();
+		var l:CPLine = this.axiom4(line, point);
+		if(l === undefined){ return undefined; }
+		var newCrease:Crease = l.crease();
 		//newCrease.madeBy = new Fold(this.creasePerpendicularThroughPoint, [new Edge(line), new XY(point)]);
 		return newCrease;
 	}
 	// AXIOM 5
 	creasePointToLine(origin:XY, point:XY, line:Crease):Crease[]{
 		return this.axiom5(origin, point, line)
-			.map(function(line){ return line.crease(); }, this)
-			.filter(function(edge){ return edge !== undefined; }, this);
+			.map(function(line:CPLine){ return line.crease(); }, this)
+			.filter(function(edge:Crease){ return edge !== undefined; }, this);
 	}
 	// AXIOM 6
 	creasePointsToLines(point1:XY, point2:XY, line1:Crease, line2:Crease):Crease[]{
 		return this.axiom6(point1, point2, line1, line2)
-			.map(function(line){ return line.crease(); }, this)
-			.filter(function(edge){ return edge !== undefined; }, this);
+			.map(function(line:CPLine){ return line.crease(); }, this)
+			.filter(function(edge:Crease){ return edge !== undefined; }, this);
 	}
 	// AXIOM 7
 	creasePerpendicularPointOntoLine(point:XY, ontoLine:Crease, perp:Crease):Crease{
-		var l = this.axiom7(point, ontoLine, perp);
-		if(l === undefined){ return; }
-		var newCrease = l.crease();
+		var l:CPLine = this.axiom7(point, ontoLine, perp);
+		if(l === undefined){ return undefined; }
+		var newCrease:Crease = l.crease();
 		//newCrease.madeBy = new Fold(this.creasePerpendicularPointOntoLine, [new XY(point), new Edge(ontoLine), new Edge(perp)]);
 		return newCrease;
 	}
