@@ -150,7 +150,7 @@ class PlanarNode extends GraphNode implements XY{
 	bisect(vector:XY):XY[]{ return new XY(this).bisect(vector); }
 	lerp(point:XY, pct:number):XY{ return new XY(this).lerp(point, pct); }
 	midpoint(other:XY):XY{ return new XY(this).midpoint(other) }
-	scale(magnitude:XY):XY{ return new XY(this).scale(magnitude) }
+	scale(magnitude:number):XY{ return new XY(this).scale(magnitude) }
 	invert():XY{ return new XY(this).invert(); }
 	add(a:any, b?:any, c?:any):XY{ return new XY(this).add(a, b, c); }
 	subtract(point:XY):XY{ return new XY(this).subtract(point); }
@@ -343,7 +343,7 @@ class PlanarFace extends Polygon{
 	isSimilarToFace(face:PlanarFace):boolean{
 		// quick check, if number of nodes differs, can't be similar
 		if (face.nodes.length != this.nodes.length) { return false; }
-		var iFaces:int[] = [];
+		var iFaces:number[] = [];
 		var nodes = face.nodes;
 		nodes.forEach(function (n, i) { if (n === this.nodes[0]){ iFaces.push(i); } }, this);
 		if (iFaces.length == 0) { return false; }

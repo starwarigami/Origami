@@ -80,16 +80,16 @@ function counterClockwiseInteriorAngleRadians(a:number, b:number):number{
 
 /** This is a 3x4 matrix: 3x3 for scale and rotation and 3x1 for translation */
 class Matrix{
-	a:number; d:number; g:number; tx:number;
-	b:number; e:number; h:number;  ty:number;
-	c:number; f:number; i:number; tz:number;
+	private a:number; private d:number; private g:number; private tx:number;
+	private b:number; private e:number; private h:number; private ty:number;
+	private c:number; private f:number; private i:number; private tz:number;
 	constructor(a?:number, b?:number, d?:number, e?:number, tx?:number, ty?:number){
 		//constructor supports 2D transformations only
 		this.a = isValidNumber(a) ? a : 1;
 		this.b = isValidNumber(b) ? b : 0;
 		this.c = 0;
-		this.d = isValidNumber(c) ? c : 0;
-		this.e = isValidNumber(d) ? d : 1;
+		this.d = isValidNumber(d) ? d : 0;
+		this.e = isValidNumber(e) ? e : 1;
 		this.f = 0;
 		this.g = 0;
 		this.h = 0;
@@ -120,11 +120,16 @@ class Matrix{
 		r.tz = this.c * mat.tx + this.f * mat.ty + this.i * mat.tz + this.tz;
 		return r;
 	}
+	transform(point:XY):XY{
+		return new XY(point.x * this.a + point.y * this.d + point.z * this.g + this.tx,
+					point.x * this.b + point.y * this.e + point.z * this.h + this.ty,
+					point.x * this.c + point.y * this.f + point.z * this.i + this.tz);
+	}
 	/** Creates a transformation matrix representing a reflection across a plane
 	 * @returns {Matrix}
 	 */
 	reflection(plane:Plane):Matrix{
-		var p:Object = plane.parameters();
+		var p:{a:number,b:number,c:number,d:number} = plane.parameters();
 		this.a = 1 - 2 * p.a *p.a;
 		this.d = -2 * p.a * p.b;
 		this.g = -2 * p.a * p.c;
@@ -140,21 +145,22 @@ class Matrix{
 		return this;
 	}
 
-	rotation(angle:number, axis:Line):Matrix{
-		var direction:XY = axis.direction.normalize();
+	rotation(angle:number, axis:LineType):Matrix{
+		var point:XY = axis.pointOnLine();
+		var direction:XY = axis.vector().normalize();
 		if (direction.sign() < 0){ direction = direction.invert(); }
 		this.a = Math.cos(angle) + direction.x * direction.x * (1 - Math.cos(angle));
 		this.b = direction.x * direction.y * (1 - Math.cos(angle)) - direction.z * Math.sin(angle);
 		this.c = direction.x * direction.z * (1 - Math.cos(angle)) + direction.y * Math.sin(angle);
-		this.tx = axis.point.x;
+		this.tx = point.x;
 		this.d = direction.y * direction.x * (1 - Math.cos(angle)) + direction.z * Math.sin(angle);
 		this.e = Math.cos(angle) + direction.y * direction.y * (1 - Math.cos(angle));
 		this.f = direction.y * direction.z * (1 - Math.cos(angle)) - direction.x * Math.sin(angle);
-		this.ty = axis.point.y;
+		this.ty = point.y;
 		this.g = direction.z * direction.x * (1 - Math.cos(angle)) - direction.y * Math.sin(angle);
 		this.h = direction.z * direction.y * (1 - Math.cos(angle)) + direction.x * Math.sin(angle);
 		this.i = Math.cos(angle) + direction.z * direction.z * (1 - Math.cos(angle));
-		this.tz = axis.point.z;
+		this.tz = point.z;
 		return this;
 	}
 	/** Deep-copy the Matrix and return it as a new object
@@ -170,9 +176,9 @@ class Matrix{
 }
 /** The base type for all vector representations, contains numbers x and y with z optional*/
 class XY{
-	x:number;
-	y:number;
-	z:number;
+	readonly x:number;
+	readonly y:number;
+	readonly z:number;
 	constructor(a?:any, b?:number, c?:number){
 		if (isValidPoint(a)){ this.x = a.x; this.y = a.y; this.z = isValidNumber(a.z) ? a.z : 0; }
 		else{ this.x = isValidNumber(a) ? a : 0; this.y = isValidNumber(b) ? b : 0; this.z = isValidNumber(c) ? c : 0; }
@@ -222,40 +228,38 @@ class XY{
 		var n2:XY = vector.normalize();
 		var n3:XY = n1.invert();
 		return [n1.add(n2).normalize(),
-			new n3.subtract(n2).normalize()];
+			n3.subtract(n2).normalize()];
 	}
 	magnitude():number { return Math.sqrt(this.dot(this)); }
 	sign():number{
-		var sign:number = Math.sign(this.x + this.y + this.z);
-		if(sign == 0){ sign = Math.sign(this.x + this.y); }
-		if(sign == 0){ sign = Math.sign(this.x); }
-		return sign;
+		var sign:number = (this.x + this.y + this.z)/Math.abs(this.x + this.y + this.z);
+		if(isNaN(sign)){ sign = (this.x + this.y)/Math.abs(this.x + this.y); }
+		if(isNaN(sign)){ sign = this.x/Math.abs(this.x); }
+		return isNaN(sign) ? 0 : sign;
 	}
 	distanceTo(a:XY):number{ return a.subtract(this).magnitude(); }
 	transform(matrix:Matrix):XY{
-		return new XY(this.x * matrix.a + this.y * matrix.d + this.z * matrix.g + matrix.tx,
-					this.x * matrix.b + this.y * matrix.e + this.z * matrix.h + matrix.ty,
-					this.x * matrix.c + this.y * matrix.f + this.z * matrix.i + matrix.tz);
+		return matrix.transform(this);
 	}
 	translate(dx:number, dy:number, dz?:number):XY{ return this.add(dx, dy, dz); }
-	rotate90(axis?:Line):XY {
+	rotate90(axis?:LineType):XY {
 		if(axis === undefined){ return new XY(-this.y, this.x, this.z); }
 		else{ return this.rotate(Math.PI * 0.5, axis); }
 	}
-	rotate180(axis?:Line):XY{
+	rotate180(axis?:LineType):XY{
 		if(axis === undefined){ return new XY(-this.x, -this.y, this.z); }
 		else{ return this.rotate(Math.PI, axis); }
 	}
-	rotate270(axis?:Line):XY{
+	rotate270(axis?:LineType):XY{
 		if(axis === undefined){ return new XY(this.y, -this.x, this.z); }
 		else{ return this.rotate(Math.PI * 1.5, axis); }
 	}
-	rotate(angle:number, axis?:Line){ return this.transform( new Matrix().rotation(angle, axis === undefined ? new Line().zAxis() : axis) ); }
+	rotate(angle:number, axis?:LineType){ return this.transform( new Matrix().rotation(angle, axis === undefined ? Line.zAxis : axis) ); }
 	lerp(point:XY, pct:number):XY{ var inv=1.0-pct; return new XY(this.x*pct+point.x* inv,this.y*pct+point.y*inv,this.z*pct+point.z*inv); }
 	midpoint(other:XY):XY{ return this.lerp(other, 0.5); }
 	reflect(plane:Plane):XY{ return this.transform(new Matrix().reflection(plane)); }
 	scale(magnitude:number):XY{ return new XY(this.x*magnitude, this.y*magnitude, this.z*magnitude); }
-	invert(){ return this.scale(-1); }
+	invert():XY{ return this.scale(-1); }
 	add(a:any, b?:number, c?:number):XY{
 		if(isValidPoint(a)){ return new XY(this.x+a.x, this.y+a.y, this.z+(isValidNumber(a.z) ? a.z : 0)); }
 		else if(isValidNumber(b)){ return new XY(this.x+a, this.y+b, this.z+(isValidNumber(c) ? c : 0)); }
@@ -268,19 +272,29 @@ class XY{
 	commonY(point:XY, epsilon?:number):boolean{return epsilonEqual(this.y, point.y, epsilon);}
 	commonZ(point:XY, epsilon?:number):boolean{return epsilonEqual(this.z, point.z, epsilon);}
 	copy():XY{ return new XY(this); }
-	project(plane?:Plane):XY{ return new XY(this.x, this.y); }
-	origin():XY{ this.x = 0; this.y = 0; this.z = 0; return this; }
+	project(plane?:Plane):XY
+	{
+		if (plane === undefined) { return new XY(this.x, this.y); }
+		//TODO implement this!
+	}
+
+	static readonly origin:XY = new XY(0,0,0);
+	/** unit vector along the x-axis*/
+	static readonly I:XY = new XY(1,0,0);
+	/** unit vector along the y-axis*/
+	static readonly J:XY = new XY(0,1,0);
+	/** unit vector along the z-axis*/
+	static readonly K:XY = new XY(0,0,1);
 }
-/** All line types (lines, rays, edges) must implement these functions */
-abstract class LineType{
-	length():number{}
-	pointOnLine():XY{}
-	vector():XY{}
+abstract class LineType implements LineType{
+	abstract length():number
+	abstract pointOnLine():XY
+	abstract vector():XY
 	perpendicular(line:LineType, epsilon?:number):boolean{ return epsilonEqual(this.vector().normalize().cross(line.vector().normalize()).magnitude(), 1, epsilon); }
 	parallel(line:LineType, epsilon?:number):boolean{ return epsilonEqual(this.vector().cross(line.vector()).magnitude(), 0, epsilon); }
-	collinear(point:XY):boolean{}
-	equivalent(line:LineType, epsilon?:number):boolean{}
-	degenrate(epsilon?:number):boolean{}
+	abstract collinear(point:XY, epsilon?:number):boolean
+	abstract equivalent(line:LineType, epsilon?:number):boolean
+	abstract degenrate(epsilon?:number):boolean
 	intersection(line:LineType, epsilon?:number):XY{
 		if(epsilon === undefined){ epsilon = EPSILON_HIGH; }
 		var v0:XY = this.vector();
@@ -297,22 +311,23 @@ abstract class LineType{
 		if(this.compFunction(t0, epsilon) && line.compFunction(t1, epsilon)){ return o0.add(v0.scale(t0)); }
 		return undefined;
 	}
-	protected compFunction(t:number, epsilon?:number):boolean{}
-	rotationMatrix(angle:number):Matrix{ return new Matrix().rotation(angle, this.infiniteLine()); }
-	nearestPoint(a:any, b?:number, c?:number):XY{}
-	nearestPointNormalTo(a:any, b?:number, c?:number):XY{}
-	transform(matrix:Matrix):LineType{}
-	copy():LineType{}
-	project(plane?:Plane):LineType{}
-	// clipWithEdge(edge:Edge, epsilon?:number){}
-	// clipWithEdges(edges:Edge[], epsilon?:number){}
-	// clipWithEdgesDetails(edges:Edge[], epsilon?:number){}
+	abstract compFunction(t:number, epsilon?:number):boolean
+	rotationMatrix(angle:number):Matrix{ return new Matrix().rotation(angle, this); }
+	abstract nearestPoint(a:any, b?:number, c?:number):XY
+	abstract nearestPointNormalTo(a:any, b?:number, c?:number):XY
+	abstract transform(matrix:Matrix):LineType
+	abstract copy():LineType
+	abstract project(plane?:Plane):LineType
+	//abstract clipWithEdge(edge:Edge, epsilon?:number):LineType
+	//abstract clipWithEdges(edges:Edge[], epsilon?:number):LineType
+	//abstract clipWithEdgesDetails(edges:Edge[], epsilon?:number):LineType
 }
 /** 3D line, extending infinitely in both directions, represented by a point and a vector */
 class Line extends LineType{
-	origin:XY;
-	direction:XY;
+	readonly point:XY;
+	readonly direction:XY;
 	constructor(a?:any, b?:any, c?:number, d?:number){
+		super();
 		// if(b instanceof XY){ this.point = a.copy(); this.direction = b.copy(); }
 		if(isValidPoint(a)){ this.point = new XY(a); this.direction = new XY(b); }
 		else{ this.point = new XY(a, b); this.direction = new XY(c, d); }
@@ -336,7 +351,7 @@ class Line extends LineType{
 		if(epsilon === undefined){ epsilon = EPSILON_HIGH; }
 		return epsilonEqual(this.direction.magnitude(), 0, epsilon);
 	}
-	protected compFunction(t:number, epsilon:number):boolean{ return true; }
+	compFunction(t:number, epsilon:number):boolean{ return true; }
 	nearestPoint(a:any, b?:number, c?:number):XY{ return this.nearestPointNormalTo(a,b,c); }
 	nearestPointNormalTo(a:any, b?:number, c?:number):XY{
 		var point:XY = new XY(a,b,c);
@@ -387,15 +402,16 @@ class Line extends LineType{
 	}
 
 	//Should these by static methods?
-	xAxis():Line{ this.point = new XY(); this.direction = new XY(1,0,0); return this; }
-	yAxis():Line{ this.point = new XY(); this.direction = new XY(0,1,0); return this; }
-	zAxis():Line{ this.point = new XY(); this.direction = new XY(0,0,1); return this; }
+	static readonly xAxis:Line = new Line(XY.origin, XY.I);
+	static readonly yAxis:Line = new Line(XY.origin, XY.J);
+	static readonly zAxis:Line = new Line(XY.origin, XY.K);
 }
 /** 3D line, extending infinitely in one direction, represented by a point and a vector */
 class Ray extends LineType{
-	origin:XY;
-	direction:XY;
+	readonly origin:XY;
+	readonly direction:XY;
 	constructor(a?:any, b?:any, c?:any, d?:any){
+		super();
 		// if(a instanceof XY){ this.origin = a; this.direction = b; }
 		if(isValidPoint(a)){
 			this.origin = new XY(a);
@@ -428,7 +444,7 @@ class Ray extends LineType{
 		if(epsilon === undefined){ epsilon = EPSILON_HIGH; }
 		return epsilonEqual(this.direction.magnitude(), 0, epsilon);
 	}
-	protected compFunction(t:number, epsilon:number):boolean{ return t >= -epsilon; }
+	compFunction(t:number, epsilon:number):boolean{ return t >= -epsilon; }
 	nearestPoint(a:any, b?:number, c?:number):XY{
 		var answer = this.nearestPointNormalTo(a,b,c);
 		if(answer !== undefined){ return answer; }
@@ -494,10 +510,11 @@ class Ray extends LineType{
 }
 /** 3D finite line, bounded and defined by two endpoints */
 class Edge extends LineType{
-	nodes:[XY,XY];
+	readonly nodes:[XY,XY];
 	// a, b are points, or
 	// (a,b) point 1 and (c,d) point 2, each x,y
 	constructor(a:any, b?:any, c?:any, d?:any){
+		super();
 		// if((a instanceof XY) && (b instanceof XY)){this.nodes = [a,b];}
 		if(isValidPoint(a)){this.nodes = [new XY(a), new XY(b)];}
 		else if(isValidNumber(d)){ this.nodes = [new XY(a,b), new XY(c,d)]; }
@@ -507,7 +524,7 @@ class Edge extends LineType{
 	length():number{ return this.nodes[0].distanceTo(this.nodes[1]); }
 	pointOnLine():XY{ return this.nodes[0].copy(); }
 	vector(originNode?:XY):XY{
-		if(originNode === undefined || this.nodes[0].equivalent(originNode){
+		if(originNode === undefined || this.nodes[0].equivalent(originNode)){
 			return this.nodes[1].subtract(this.nodes[0]);
 		}
 		return this.nodes[0].subtract(this.nodes[1]);
@@ -518,7 +535,7 @@ class Edge extends LineType{
 		var l1 = new Edge(point, this.nodes[1]).length();
 		return epsilonEqual(this.length() - l0 - l1, 0, epsilon);
 	}
-	equivalent(line:Edge, epsilon?:number):boolean{
+	equivalent(line:LineType, epsilon?:number):boolean{
 		if(epsilon === undefined){ epsilon = EPSILON_HIGH; }
 		if(!(line instanceof Edge)){ return false; }
 		return ((this.nodes[0].equivalent(line.nodes[0],epsilon) &&
@@ -530,12 +547,12 @@ class Edge extends LineType{
 		if(epsilon === undefined){ epsilon = EPSILON_HIGH; }
 		return this.nodes[0].equivalent(this.nodes[1], epsilon);
 	}
-	protected compFunction(t:number, epsilon:number):boolean{ return t >= -epsilon && t <= 1 + epsilon; }
+	compFunction(t:number, epsilon:number):boolean{ return t >= -epsilon && t <= 1 + epsilon; }
 	nearestPoint(a:any, b?:number, c?:number):XY{
 		var answer = this.nearestPointNormalTo(a,b,c);
 		if(answer !== undefined){ return answer; }
 		return this.nodes
-			.map(function(el){ return {point:el,distance:el.distanceTo(point)}; },this)
+			.map(function(el){ return {point:el,distance:el.distanceTo(answer)}; },this)
 			.sort(function(a,b){ return a.distance - b.distance; })
 			.shift()
 			.point;
@@ -551,10 +568,10 @@ class Edge extends LineType{
 		return new Edge(this.nodes[0].transform(matrix), this.nodes[1].transform(matrix));
 	}
 	copy():LineType{ return new Edge(this.nodes[0], this.nodes[1]); }
-	project(plane):LineType{ return new Edge(this.origin.project(plane), this.direction.project(plane)); }
+	project(plane):LineType{ return new Edge(this.nodes[0].project(plane), this.nodes[1].project(plane)); }
 	// additional methods
 	midpoint():XY{ return this.nodes[0].midpoint(this.nodes[1]); }
-	perpendicularBisector():Line{ return new Plane(this.midpoint(), this.vector()); }
+	perpendicularBisector():Plane{ return new Plane(this.midpoint(), this.vector()); }
 	infiniteLine():Line{ return new Line(this.nodes[0], this.nodes[1].subtract(this.nodes[0])); }
 }
 /** A path of node-adjacent edges defined by a set of nodes. */
@@ -595,7 +612,7 @@ class Polyline{
 			//	prevClip.edge.nodes[1].equivalent(prevClip.intersection.nodes[0]) ||
 			//	prevClip.edge.nodes[1].equivalent(prevClip.intersection.nodes[1])){ break; }
 			var v = prevClip.intersection.vector();
-			var reflection = new Plane(prevClip.intersection.nodes[0], v.cross(prevClip.edge).cross(v)).reflectionMatrix();
+			var reflection = new Plane(prevClip.intersection.nodes[0], v.cross(prevClip.edge.vector()).cross(v)).reflectionMatrix();
 			var newRay = new Ray(prevClip.edge.nodes[1], prevClip.edge.nodes[0].transform(reflection).subtract(prevClip.edge.nodes[1]));
 			// get next edge intersections
 			var newClips:{edge:Edge,intersection:Edge}[] = newRay.clipWithEdgesDetails(intersectable);
@@ -615,12 +632,12 @@ class Polyline{
 }
 /** A 3D planar surface of infinite area defined by a point and a normal vector. */
 class Plane {
-	point:XY;
-	normal:XY;
+	readonly point:XY;
+	readonly normal:XY;
 
 	// a, b are points, or
 	// (a,b,c) point 1 and (d,e,f) point 2, each x,y,z
-	constructor(a:any, b:any, c?:any, d?:any, e?:any, f?:any) {
+	constructor(a?:any, b?:any, c?:any, d?:any, e?:any, f?:any) {
 		// if(a instanceof XY){ this.point = a; this.normal = b; }
 		if (isValidPoint(a)) {
 			this.point = new XY(a);
@@ -632,12 +649,12 @@ class Plane {
 		}
 	}
 	/** parameters of the equation ax + by + cz + d = 0 that describes the plane */
-	parameters():Object { return { a:this.normal.x, b:this.normal.y, c:this.normal.z, d:-1 * this.point.dot(this.normal) };	}
+	parameters():{a:number,b:number,c:number,d:number} { return { a:this.normal.x, b:this.normal.y, c:this.normal.z, d:-1 * this.point.dot(this.normal) };	}
 
 	perpendicular(plane:Plane, epsilon?:number):boolean { return epsilonEqual(this.normal.normalize().cross(plane.normal.normalize()).magnitude(), 1, epsilon); }
 	parallel(plane:Plane, epsilon?:number):boolean { return epsilonEqual(this.normal.cross(plane.normal).magnitude(), 0, epsilon); }
-	coplanar(point:any, epsilon?:number):boolean { var p:Object = this.parameters(); return epsilonEqual(p.a * point.x + p.b * point.y + p.c * point.z + p.d, 0, epsilon); }
-	equivalent(plane:Plane, epsilon?:number):boolean { return this.coplanar(plane.points()[0], epsilon) && this.parallel(plane, epsilon); }
+	coplanar(point:any, epsilon?:number):boolean { var p:{a:number,b:number,c:number,d:number} = this.parameters(); return epsilonEqual(p.a * point.x + p.b * point.y + p.c * point.z + p.d, 0, epsilon); }
+	equivalent(plane:Plane, epsilon?:number):boolean { return this.coplanar(plane.point, epsilon) && this.parallel(plane, epsilon); }
 	degenerate(epsilon?:number):boolean { return epsilonEqual(this.normal.magnitude(), 0, epsilon); }
 
 	intersection(plane:Plane, epsilon?:number):Line {
@@ -648,39 +665,38 @@ class Plane {
 		//TODO:implement this!
 	}
 
-	reflectionMatrix():Matrix { return Matrix.reflection(this); }
+	reflectionMatrix():Matrix { return new Matrix().reflection(this); }
 
 	copy():Plane { return new Plane(this.point.copy(), this.normal.copy()); }
 
 	//Should these by static methods?
 	/** the plane passing through the origin normal to the z-axis*/
-	XY():Plane { this.point = new XY(); this.normal = new XY(0, 0, 1); return this; }
+	static readonly XY:Plane = new Plane(XY.origin, XY.K);
 	/** the plane passing through the origin normal to the x-axis*/
-	YZ():Plane { this.point = new XY(); this.normal = new XY(1, 0, 0); return this; }
+	static readonly YZ:Plane = new Plane(XY.origin, XY.I);
 	/** the plane passing through the origin normal to the y-axis*/
-	ZX():Plane { this.point = new XY(); this.normal = new XY(0, 1, 0); return this; }
+	static readonly ZX:Plane = new Plane(XY.origin, XY.J);
 	/** the unique plane passing through three specified points*/
-	fromPoints(a, b, c, d, e, f, g, h, i):Plane {
-		var point1:XY, point2:XY;
+	static fromPoints(a:any, b:any, c:any, d?:number, e?:number, f?:number, g?:number, h?:number, i?:number):Plane {
+		var point0:XY, point1:XY, point2:XY;
 		if (isValidPoint(a)) {
-			this.origin = new XY(a);
+			point0 = new XY(a);
 			point1 = new XY(b);
 			point2 = new XY(c);
 		}
 		else {
-			this.origin = new XY(a, b, c);
+			point0 = new XY(a, b, c);
 			point1 = new XY(d, e, f);
 			point2 = new XY(g, h, i);
 		}
-		var vector1:XY = point1.subtract(this.origin);
-		var vector2:XY = point2.subtract(this.origin);
-		this.normal = vector1.cross(vector2);
-		return this;
+		var vector1:XY = point1.subtract(point0);
+		var vector2:XY = point2.subtract(point0);
+		return new Plane(point0, vector1.cross(vector2));
 	}
 }
 /** the base class for all 2D polygon objects */
 abstract class PolygonType {
-	vertices():XY[] { }
+	abstract vertices():XY[]
 	///** length of the perimeter */
 	//perimeter():number { }
 	/** Tests whether or not a point is contained inside a polygon, or optionally on the perimeter
@@ -694,7 +710,7 @@ abstract class PolygonType {
 
 		var useEdges:boolean = this.hasOwnProperty('edges');
 		var array:any[] = undefined;
-		if (useEdges) { array = this.edges; }
+		if (useEdges) { array = this['edges']; }
 		else { array = this.vertices(); }
 		if (array.length == 0) { return false; }
 
@@ -703,12 +719,12 @@ abstract class PolygonType {
 		for (var i= 0; i < array.length; i++) {
 			var edge:Edge = useEdges ? array[i] : new Edge(array[i], array[i % array.length]);
 			// if the point lies on the edge it is not contained. unless explicitly specified
-			if (edge.colinear(point, epsilon)) { return includePerimeter; }
+			if (edge.collinear(point, epsilon)) { return includePerimeter; }
 
 			// a point is inisde the polygon if any ray from that point intersects an odd number of edges
 			if (i == 0/*ray === undefined*/) {
 				//define a ray that runs from the point passing through the middle of the first edge
-				ray = new Ray(point, edges[0].midpoint.subtract(point));
+				ray = new Ray(point, edge.midpoint().subtract(point));
 			}
 			else {
 				var intersection:XY = ray.intersection(edge);
@@ -725,13 +741,13 @@ abstract class PolygonType {
 	liesOnEdge(point:any, epsilon?:number):boolean {
 		var useEdges:boolean = this.hasOwnProperty('edges');
 		var array:any[] = undefined;
-		if (useEdges) { array = this.edges; }
+		if (useEdges) { array = this['edges']; }
 		else { array = this.vertices(); }
 		if (array.length == 0) { return false; }
 
-		for (var i:int = 0; i < array.length; i++) {
+		for (var i:number = 0; i < array.length; i++) {
 			var edge:Edge = useEdges ? array[i] : new Edge(array[i], array[i % array.length]);
-			if (edge.colinear(point, epsilon)) { return true; }
+			if (edge.collinear(point, epsilon)) { return true; }
 		}
 		return false;
 	}
@@ -740,9 +756,9 @@ abstract class PolygonType {
 	 * @example
 	 * var area = polygon.signedArea()
 	 */
-	signedArea(vertices?:XY[]) {
+	signedArea(vertices?:XY[]):number {
 		if (vertices === undefined) { vertices = this.vertices(); }
-		return 0.5 * vertices.map(function (el:XY, i:int) {
+		return 0.5 * vertices.map(function (el:XY, i:number) {
 			var nextEl:XY = vertices[(i + 1) % vertices.length];
 			return el.signedArea(nextEl);
 		}, this)
@@ -757,7 +773,7 @@ abstract class PolygonType {
 		if (vertices === undefined) {
 			vertices = this.vertices();
 		}
-		return vertices.map(function (el:XY, i:int) {
+		return vertices.map(function (el:XY, i:number) {
 			var nextEl:XY = vertices[(i + 1) % vertices.length];
 			var mag:number = el.signedArea(nextEl);
 			return el.add(nextEl).scale(mag);
@@ -776,23 +792,23 @@ abstract class PolygonType {
 		}
 		// this is not an average / means
 		var xMin:number = Infinity, xMax:number = -Infinity, yMin:number = Infinity, yMax:number = -Infinity, zMin:number = Infinity, zMax:number = -Infinity;
-		for (var i:int = 0; i < vertices.length; i++) {
+		for (var i:number = 0; i < vertices.length; i++) {
 			if (vertices[i].x > xMax) {
 				xMax = vertices[i].x;
 			}
-			if (this.nodes[i].x < xMin) {
+			if (vertices[i].x < xMin) {
 				xMin = vertices[i].x;
 			}
-			if (this.nodes[i].y > yMax) {
+			if (vertices[i].y > yMax) {
 				yMax = vertices[i].y;
 			}
-			if (this.nodes[i].y < yMin) {
+			if (vertices[i].y < yMin) {
 				yMin = vertices[i].y;
 			}
-			if (this.nodes[i].z > zMax) {
+			if (vertices[i].z > zMax) {
 				zMax = vertices[i].z;
 			}
-			if (this.nodes[i].z < zMin) {
+			if (vertices[i].z < zMin) {
 				zMin = vertices[i].z;
 			}
 		}
@@ -807,17 +823,17 @@ abstract class PolygonType {
 		var vertices1:XY[] = this.vertices();
 		var vertices2:XY[] = polygon.vertices();
 		// quick check, if number of vertices differs, can't be equivalent
-		if (vertices2.length != this.nodes.length) { return false; }
+		if (vertices2.length != vertices1.length) { return false; }
 		//find if the first vertex has an equivalent
-		var i0s:int[] = [];
-		vertices2.forEach(function (v:XY, i:int) { if (v.equivalent(vertices1[0], epsilon)) { i0s.push(i); } }, this);
+		var i0s:number[] = [];
+		vertices2.forEach(function (v:XY, i:number) { if (v.equivalent(vertices1[0], epsilon)) { i0s.push(i); } }, this);
 		if (i0s.length == 0) { return false; }
 		do {
 			//check both clockwise and anticlockwise orientations
-			var i0:int = i0s.shift();
+			var i0:number = i0s.shift();
 			var equivalent:boolean = true;
-			for (var i:int = 1; i < vertices1.length; ++i) {
-				var iMod:int = (i0 + i) % vertices1.length;
+			for (var i:number = 1; i < vertices1.length; ++i) {
+				var iMod:number = (i0 + i) % vertices1.length;
 				if (vertices1[i].equivalent(vertices2[iMod], epsilon)) {
 					equivalent = false;
 					break;
@@ -864,7 +880,7 @@ abstract class PolygonType {
 	 */
 	minimumRect():Rect {
 		var minX:number = Infinity, maxX:number = -Infinity, minY:number = Infinity, maxY:number = -Infinity;
-		this.nodes().forEach(function (el:XY) {
+		this.vertices().forEach(function (el:XY) {
 			if (el.x > maxX) {
 				maxX = el.x;
 			}
@@ -884,7 +900,7 @@ abstract class PolygonType {
 	infinitePlane():Plane {
 		var vertices:XY[] = this.vertices();
 		//filter out any colinear triplets
-		vertices = vertices.map(function (el:XY, i:int) {
+		vertices = vertices.map(function (el:XY, i:number) {
 			var prevEl:XY = vertices[(i + vertices.length - 1) % vertices.length];
 			var nextEl:XY = vertices[(i + 1) % vertices.length];
 			if (epsilonEqual(el.subtract(prevEl).cross(nextEl.subtract(el)).magnitude(), 0)) {
@@ -894,8 +910,8 @@ abstract class PolygonType {
 		}).filter(function (el:XY) { return el !== undefined; });
 		if (vertices.length > 2) {
 			//determine the plane that coincides with the first three vertices
-			var plane:Plane = new Plane().fromPoints(vertices[0], vertices[1], vertices[2]);
-			for (var i:int = 3; i < vertices.length; i++) {
+			var plane:Plane = Plane.fromPoints(vertices[0], vertices[1], vertices[2]);
+			for (var i:number = 3; i < vertices.length; i++) {
 				//check that all remaining vertices lie on the same plane
 				if (!plane.coplanar(vertices[i])) { return undefined; }
 			}
@@ -927,6 +943,7 @@ class Rect extends PolygonType{
 	height:XY;
 	size:{width:number, height:number};
 	constructor(a:any,b:any,c:any,d?:number){
+		super();
 		// a, b, c are points, or
 		// a is point and c, d are width and height respectively
 		// (a,b) point and c, d are width and height respectively
@@ -967,6 +984,7 @@ class Triangle extends PolygonType{
 	circumcenter:XY;
 	sectors:[Sector,Sector,Sector];
 	constructor(points:[XY,XY,XY], circumcenter?:XY){
+		super();
 		this.points = points;
 		this.edges = <[Edge, Edge, Edge]>this.points.map(function(el,i){
 			var nextEl = this.points[ (i+1)%this.points.length ];
@@ -1019,12 +1037,12 @@ class Circle{
 		if (isValidNumber(c)) {
 			this.center = new XY(a, b);
 			this.radius = Math.abs(c);
-			this.normal = new XY(0, 0, 1);
+			this.normal = XY.K;
 		}
 		else {
 			this.center = new XY(a);
 			this.radius = isValidNumber(b) ? Math.abs(b) : 0;
-			this.normal = isValidPoint(c) ? new XY(c) : new XY(0, 0, 1);
+			this.normal = isValidPoint(c) ? new XY(c) : XY.K;
 		}
 	}
 	intersection(line:LineType, epsilon?:number):XY[]{
@@ -1053,7 +1071,7 @@ class Circle{
 /** The boundary of a polygon defined by a sequence of nodes */
 class Polygon extends PolygonType{
 	nodes:XY[];
-	constructor(){ this.nodes = []; }
+	constructor(){ super(); this.nodes = []; }
 	// implements PolygonType
 	vertices():XY[] { return this.nodes.map(function(el){ return el.copy(); }); }
 }
@@ -1061,7 +1079,7 @@ class Polygon extends PolygonType{
 //TODO: extend ConvexPolygon from polygon?
 class ConvexPolygon extends PolygonType{
 	edges:Edge[];
-	constructor(){ this.edges = []; }
+	constructor(){ super(); this.edges = []; }
 	nodes():XY[]{
 		return this.edges.map(function(el,i){
 			var nextEl = this.edges[ (i+1)%this.edges.length ];
@@ -1252,7 +1270,7 @@ class Sector{
 		var rays = [];
 	  var vectors = this.vectors();
 	  var angle = vectors[0].counterClockwiseInteriorAngle(vectors[1]) / divisions;
-	  var axis =  new Line(this.origin, v[0].cross(v[1]));
+	  var axis =  new Line(this.origin, vectors[0].cross(vectors[1]));
 		for (var i = 1; i < divisions; i++) {
 			rays.push(new Ray(this.origin.copy(), vectors[0].rotate(angle, axis)));
 		}

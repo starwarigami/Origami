@@ -171,7 +171,7 @@ class FoldSequence{
 
 class CreaseSector extends PlanarSector{
 	bisect():CPRay{
-		return new CPRay(<CreasePattern>this.origin.graph, new Sector(this.origin, this.endpoints).bisect());
+		return new CPRay(<CreasePattern>this.origin.graph, new Sector(this.origin, this.endPoints).bisect());
 	}
 	/** This will search for an angle which if an additional crease is made will satisfy Kawasaki's theorem */
 	kawasakiCollapse():CPRay{
@@ -781,7 +781,7 @@ class CreasePattern extends PlanarGraph{
 	private creaseSymmetry(ax:number, ay:number, bx:number, by:number):Crease{
 		if(this.symmetryLine === undefined){ return undefined; }
 		// todo, improve this whole situation
-		var p:Plane = new Plane(this.symmetryLine.point, this.symmetryLine.direction.cross(new Line().zAxis()))
+		var p:Plane = new Plane(this.symmetryLine.pointOnLine(), this.symmetryLine.direction.cross(XY.K))
 		var ra = new XY(ax, ay).reflect(p);
 		var rb = new XY(bx, by).reflect(p);
 		return <Crease>this.newPlanarEdge(ra.x, ra.y, rb.x, rb.y);
@@ -1021,7 +1021,7 @@ class CreasePattern extends PlanarGraph{
 		for(var n0 = 0; n0 < this.nodes.length-1; n0++){
 			for(var n1 = n0+1; n1 < this.nodes.length; n1++){
 				var inputEdge = new Edge(this.nodes[n0], this.nodes[n1]);
-				var edge = this.boundary.clipLine( inputEdge.perpendicularBisector() );
+				var edge = this.boundary.clipLine( new Line(inputEdge.midpoint(), inputEdge.vector().rotate90()) );
 				if(edge !== undefined){
 					var cpedge = new CPEdge(this, edge);
 					cpedge.madeBy = new Fold(this.creasePointToPoint, [new XY(this.nodes[n0].x,this.nodes[n0].y), new XY(this.nodes[n1].x,this.nodes[n1].y)]);
