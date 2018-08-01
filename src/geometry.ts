@@ -129,38 +129,43 @@ class Matrix{
 	 * @returns {Matrix}
 	 */
 	reflection(plane:Plane):Matrix{
-		var p:{a:number,b:number,c:number,d:number} = plane.parameters();
-		this.a = 1 - 2 * p.a *p.a;
-		this.d = -2 * p.a * p.b;
-		this.g = -2 * p.a * p.c;
-		this.tx = -2 * p.a * p.d;
-		this.b = -2 * p.b * p.a;
-		this.e = 1 - 2 * p.b *p.b;
-		this.h = -2 * p.b * p.c;
-		this.ty = -2 * p.b * p.d;
-		this.c = -2 * p.c * p.a;
-		this.f = -2 * p.c * p.b;
-		this.i = 1 - 2 * p.c *p.c;
-		this.tz = -2 * p.c * p.d;
+		var normal:XY = plane.normal.normalize();
+		var a:number = normal.x;
+		var b:number = normal.y;
+		var c:number = normal.z;
+		var d:number = plane.point.dot(normal);
+		this.a = 1 - 2*a*a;
+		this.d = -2*a*b;
+		this.g = -2*a*c;
+		this.tx = 2*a*d;
+		this.b = -2*b*a;
+		this.e = 1 - 2*b*b;
+		this.h = -2*b*c;
+		this.ty = 2*b*d;
+		this.c = -2*c*a;
+		this.f = -2*c*b;
+		this.i = 1 - 2*c*c;
+		this.tz = 2*c*d;
 		return this;
 	}
 
 	rotation(angle:number, axis:LineType):Matrix{
-		var point:XY = axis.pointOnLine();
+		var point:XY = axis.pointOnLine().invert();
 		var direction:XY = axis.vector().normalize();
-		if (direction.sign() < 0){ direction = direction.invert(); }
-		this.a = Math.cos(angle) + direction.x * direction.x * (1 - Math.cos(angle));
-		this.b = direction.x * direction.y * (1 - Math.cos(angle)) - direction.z * Math.sin(angle);
-		this.c = direction.x * direction.z * (1 - Math.cos(angle)) + direction.y * Math.sin(angle);
-		this.tx = point.x;
-		this.d = direction.y * direction.x * (1 - Math.cos(angle)) + direction.z * Math.sin(angle);
-		this.e = Math.cos(angle) + direction.y * direction.y * (1 - Math.cos(angle));
-		this.f = direction.y * direction.z * (1 - Math.cos(angle)) - direction.x * Math.sin(angle);
-		this.ty = point.y;
-		this.g = direction.z * direction.x * (1 - Math.cos(angle)) - direction.y * Math.sin(angle);
-		this.h = direction.z * direction.y * (1 - Math.cos(angle)) + direction.x * Math.sin(angle);
-		this.i = Math.cos(angle) + direction.z * direction.z * (1 - Math.cos(angle));
-		this.tz = point.z;
+		var cosA:number = Math.cos(angle);
+		var sinA:number = Math.sin(angle);
+		this.a = cosA + direction.x * direction.x * (1 - cosA);
+		this.b = direction.x * direction.y * (1 - cosA) - direction.z * sinA;
+		this.c = direction.x * direction.z * (1 - cosA) + direction.y * sinA;
+		this.d = direction.y * direction.x * (1 - cosA) + direction.z * sinA;
+		this.e = cosA + direction.y * direction.y * (1 - cosA);
+		this.f = direction.y * direction.z * (1 - cosA) - direction.x * sinA;
+		this.g = direction.z * direction.x * (1 - cosA) - direction.y * sinA;
+		this.h = direction.z * direction.y * (1 - cosA) + direction.x * sinA;
+		this.i = cosA + direction.z * direction.z * (1 - cosA);
+		this.tx = (this.a - 1) * point.x + this.d * point.y + this.c * point.z;
+		this.ty = this.b * point.x + (this.e - 1) * point.y + this.h * point.z;
+		this.tz = this.c * point.x + this.f * point.y + (this.i - 1) * point.z;
 		return this;
 	}
 	/** Deep-copy the Matrix and return it as a new object
@@ -272,10 +277,16 @@ class XY{
 	commonY(point:XY, epsilon?:number):boolean{return epsilonEqual(this.y, point.y, epsilon);}
 	commonZ(point:XY, epsilon?:number):boolean{return epsilonEqual(this.z, point.z, epsilon);}
 	copy():XY{ return new XY(this); }
-	project(plane?:Plane):XY
+	project(plane?:Plane, vanishingPoint?:XY):XY
 	{
 		if (plane === undefined) { return new XY(this.x, this.y); }
-		//TODO implement this!
+		var line:Line;
+		if (vanishingPoint === undefined) { line = new Line(this, plane.normal); }
+		else {
+			if (plane.coplanar(vanishingPoint)) { return undefined; }
+			line = new Line(this, this.subtract(vanishingPoint));
+		}
+		return line.intersectionWithPlane(plane);
 	}
 
 	static readonly origin:XY = new XY(0,0,0);
@@ -317,7 +328,7 @@ abstract class LineType implements LineType{
 	abstract nearestPointNormalTo(a:any, b?:number, c?:number):XY
 	abstract transform(matrix:Matrix):LineType
 	abstract copy():LineType
-	abstract project(plane?:Plane):LineType
+	abstract project(plane?:Plane, vanishingPoint?:XY):LineType
 	//abstract clipWithEdge(edge:Edge, epsilon?:number):LineType
 	//abstract clipWithEdges(edges:Edge[], epsilon?:number):LineType
 	//abstract clipWithEdgesDetails(edges:Edge[], epsilon?:number):LineType
@@ -364,7 +375,7 @@ class Line extends LineType{
 		return new Line(this.point.transform(matrix), this.direction.transform(matrix));
 	}
 	copy():LineType{ return new Line(this.point, this.direction); }
-	project(plane):LineType{ return new Line(this.point.project(plane), this.direction.project(plane)); }
+	project(plane?:Plane, vanishingPoint?:XY):LineType{ return new Line(this.point.project(plane, vanishingPoint), this.direction.project(plane, vanishingPoint)); }
 	bisect(line:Line):Line[]{
 		if( this.parallel(line) ){
 			return [new Line(this.point.midpoint(line.point), this.direction)];
@@ -399,6 +410,12 @@ class Line extends LineType{
 				.reduce(function(prev, curr){ return prev.concat(curr); },[])
 				.map(function(ray){ return new Line(ray.origin, ray.direction); },this);
 		}
+	}
+	intersectionWithPlane(plane:Plane):XY{
+		var denominator:number = this.direction.dot(plane.normal);
+		if (epsilonEqual(denominator, 0)) { return undefined; } //line parallel to plane (0 or infinite intersections)
+		var numerator:number = plane.point.subtract(this.point).dot(plane.normal);
+		return this.point.add(this.direction.scale(numerator/denominator));
 	}
 
 	//Should these by static methods?
@@ -463,7 +480,7 @@ class Ray extends LineType{
 		return new Ray(this.origin.transform(matrix), this.direction.transform(matrix));
 	}
 	copy():LineType{return new Ray(this.origin, this.direction); }
-	project(plane:Plane):LineType{ return new Ray(this.origin.project(plane), this.direction.project(plane)); }
+	project(plane?:Plane, vanishingPoint?:XY):LineType{ return new Ray(this.origin.project(plane, vanishingPoint), this.direction.project(plane, vanishingPoint)); }
 	// additional methods
 	flip():Ray{ return new Ray(this.origin, this.direction.invert()); }
 	/** this returns undefined if ray and edge don't intersect
@@ -551,8 +568,9 @@ class Edge extends LineType{
 	nearestPoint(a:any, b?:number, c?:number):XY{
 		var answer = this.nearestPointNormalTo(a,b,c);
 		if(answer !== undefined){ return answer; }
+		var point:XY = new XY(a,b,c);
 		return this.nodes
-			.map(function(el){ return {point:el,distance:el.distanceTo(answer)}; },this)
+			.map(function(el){ return {point:el,distance:el.distanceTo(point)}; },this)
 			.sort(function(a,b){ return a.distance - b.distance; })
 			.shift()
 			.point;
@@ -568,7 +586,7 @@ class Edge extends LineType{
 		return new Edge(this.nodes[0].transform(matrix), this.nodes[1].transform(matrix));
 	}
 	copy():LineType{ return new Edge(this.nodes[0], this.nodes[1]); }
-	project(plane):LineType{ return new Edge(this.nodes[0].project(plane), this.nodes[1].project(plane)); }
+	project(plane?:Plane, vanishingPoint?:XY):LineType{ return new Edge(this.nodes[0].project(plane,vanishingPoint), this.nodes[1].project(plane, vanishingPoint)); }
 	// additional methods
 	midpoint():XY{ return this.nodes[0].midpoint(this.nodes[1]); }
 	perpendicularBisector():Plane{ return new Plane(this.midpoint(), this.vector()); }
@@ -649,11 +667,10 @@ class Plane {
 		}
 	}
 	/** parameters of the equation ax + by + cz + d = 0 that describes the plane */
-	parameters():{a:number,b:number,c:number,d:number} { return { a:this.normal.x, b:this.normal.y, c:this.normal.z, d:-1 * this.point.dot(this.normal) };	}
 
 	perpendicular(plane:Plane, epsilon?:number):boolean { return epsilonEqual(this.normal.normalize().cross(plane.normal.normalize()).magnitude(), 1, epsilon); }
 	parallel(plane:Plane, epsilon?:number):boolean { return epsilonEqual(this.normal.cross(plane.normal).magnitude(), 0, epsilon); }
-	coplanar(point:any, epsilon?:number):boolean { var p:{a:number,b:number,c:number,d:number} = this.parameters(); return epsilonEqual(p.a * point.x + p.b * point.y + p.c * point.z + p.d, 0, epsilon); }
+	coplanar(point:any, epsilon?:number):boolean { return epsilonEqual(this.normal.x * point.x + this.normal.y * point.y + this.normal.z * point.z - this.point.dot(this.normal), 0, epsilon); }
 	equivalent(plane:Plane, epsilon?:number):boolean { return this.coplanar(plane.point, epsilon) && this.parallel(plane, epsilon); }
 	degenerate(epsilon?:number):boolean { return epsilonEqual(this.normal.magnitude(), 0, epsilon); }
 
@@ -928,10 +945,10 @@ abstract class PolygonType {
 		return p;
 	}
 	/** the projection of the polygon onto the specified plane (or the XY plane if not specified)*/
-	project(plane?:Plane) {
+	project(plane?:Plane, vanishingPoint?:XY) {
 		var p:Polygon = new Polygon();
 		p.nodes = this.vertices().map(function (v:XY) {
-			return v.project(plane);
+			return v.project(plane, vanishingPoint);
 		}, this);
 		return p;
 	}
@@ -1283,8 +1300,8 @@ class Sector{
 	}
 	/** a sector contains a point if it is between the two edges in counter-clockwise order */
 	contains(point:XY):boolean{
-		var cross0 = point.subtract(this.endPoints[0]).cross(this.origin.subtract(this.endPoints[0]))
-		var cross1 = point.subtract(this.origin).cross(this.endPoints[1].subtract(this.origin));
+		var cross0 = this.origin.subtract(this.endPoints[0]).cross(point.subtract(this.endPoints[0]))
+		var cross1 = this.endPoints[1].subtract(this.origin).cross(point.subtract(this.origin));
 		return cross0.sign() < 0 && cross1.sign() < 0;
 	}
 	// (private function)

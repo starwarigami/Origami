@@ -197,7 +197,7 @@ class CreaseSector extends PlanarSector{
 		var angle0 = Math.atan2(vec0.y, vec0.x);
 		// var angle1 = this.edges[1].absoluteAngle(this.origin);
 		var newA = angle0 + dEven;
-		var solution = new Ray(new XY(this.origin.x, this.origin.y), new XY(Math.cos(newA), Math.sin(newA)));
+		var solution = new Ray(this.origin, new XY(Math.cos(newA), Math.sin(newA)));
 		if( this.contains( solution.origin.add(solution.direction) ) ){
 			return new CPRay(<CreasePattern>this.origin.graph, solution);
 		}
@@ -328,7 +328,8 @@ class Crease extends PlanarEdge{
 	// AXIOM 3
 	creaseToEdge(edge:Crease):Crease[]{return this.graph.creaseEdgeToEdge(this, edge);}
 	//override method of Edge to use crease angle by default
-	rotationMatrix(angle?:number):Matrix{ return new Edge(this).rotationMatrix(isValidNumber(angle) ? angle : this.angle); }
+	//rotationMatrix(angle?:number):Matrix{ return new Edge(this).rotationMatrix(isValidNumber(angle) ? angle : this.angle); }
+	rotationMatrix(angle?:number):Matrix{ return new Matrix().reflection(new Plane(this.pointOnLine(), this.vector().cross(XY.K))); }
 }
 class CreaseFace extends PlanarFace{
 	rabbitEar():Crease[]{
@@ -1370,7 +1371,9 @@ class CreasePattern extends PlanarGraph{
 		file["file_author"] = "";
 		file["file_classes"] = ["singleModel"];
 		file["vertices_coords"] = this.nodes.map(function(node){
-			return [cleanNumber(node.x, 12),cleanNumber(node.y, 12)];
+			var coords:number[] = [cleanNumber(node.x, 12),cleanNumber(node.y, 12)];
+			if (!epsilonEqual(node.z, 0)) { coords.push(cleanNumber(node.z)); }
+			return coords;
 		},this);
 		file["faces_vertices"] = this.faces.map(function(face){
 			return face.nodes.map(function(node){ return node.index; },this);
@@ -1385,6 +1388,15 @@ class CreasePattern extends PlanarGraph{
 				case CreaseDirection.valley: return "V";
 				case CreaseDirection.mark: return "F";
 				default: return "U";
+			}
+		},this);
+		file["edges_foldAngle"] = this.edges.map(function(edge){
+			switch(edge.orientation){
+				case CreaseDirection.border: return 0;
+				case CreaseDirection.mountain: return -1 * edge.angle * 180 / Math.PI;
+				case CreaseDirection.valley: return edge.angle * 180 / Math.PI;
+				case CreaseDirection.mark: return 0;
+				default: return 0;
 			}
 		},this);
 		return file;
@@ -1432,6 +1444,12 @@ class CreasePattern extends PlanarGraph{
 		file["edges_assignment"]
 			.map(function(assignment){ return assignmentDictionary[assignment]; })
 			.forEach(function(orientation, i){ this.edges[i].orientation = orientation; },this);
+
+		if (file["edges_foldAngle"] !== undefined) {
+			file["edges_foldAngle"]
+				.map(function(foldAngle){ return Math.abs(foldAngle * Math.PI / 180); })
+				.forEach(function(angle, i){ this.edges[i].angle = angle; },this);
+		}
 
 		this.faces = file["faces_vertices"]
 			.map(function(faceNodeArray, fi){

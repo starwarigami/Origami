@@ -101,39 +101,42 @@ var Matrix = (function () {
         return new XY(point.x * this.a + point.y * this.d + point.z * this.g + this.tx, point.x * this.b + point.y * this.e + point.z * this.h + this.ty, point.x * this.c + point.y * this.f + point.z * this.i + this.tz);
     };
     Matrix.prototype.reflection = function (plane) {
-        var p = plane.parameters();
-        this.a = 1 - 2 * p.a * p.a;
-        this.d = -2 * p.a * p.b;
-        this.g = -2 * p.a * p.c;
-        this.tx = -2 * p.a * p.d;
-        this.b = -2 * p.b * p.a;
-        this.e = 1 - 2 * p.b * p.b;
-        this.h = -2 * p.b * p.c;
-        this.ty = -2 * p.b * p.d;
-        this.c = -2 * p.c * p.a;
-        this.f = -2 * p.c * p.b;
-        this.i = 1 - 2 * p.c * p.c;
-        this.tz = -2 * p.c * p.d;
+        var normal = plane.normal.normalize();
+        var a = normal.x;
+        var b = normal.y;
+        var c = normal.z;
+        var d = plane.point.dot(normal);
+        this.a = 1 - 2 * a * a;
+        this.d = -2 * a * b;
+        this.g = -2 * a * c;
+        this.tx = 2 * a * d;
+        this.b = -2 * b * a;
+        this.e = 1 - 2 * b * b;
+        this.h = -2 * b * c;
+        this.ty = 2 * b * d;
+        this.c = -2 * c * a;
+        this.f = -2 * c * b;
+        this.i = 1 - 2 * c * c;
+        this.tz = 2 * c * d;
         return this;
     };
     Matrix.prototype.rotation = function (angle, axis) {
-        var point = axis.pointOnLine();
+        var point = axis.pointOnLine().invert();
         var direction = axis.vector().normalize();
-        if (direction.sign() < 0) {
-            direction = direction.invert();
-        }
-        this.a = Math.cos(angle) + direction.x * direction.x * (1 - Math.cos(angle));
-        this.b = direction.x * direction.y * (1 - Math.cos(angle)) - direction.z * Math.sin(angle);
-        this.c = direction.x * direction.z * (1 - Math.cos(angle)) + direction.y * Math.sin(angle);
-        this.tx = point.x;
-        this.d = direction.y * direction.x * (1 - Math.cos(angle)) + direction.z * Math.sin(angle);
-        this.e = Math.cos(angle) + direction.y * direction.y * (1 - Math.cos(angle));
-        this.f = direction.y * direction.z * (1 - Math.cos(angle)) - direction.x * Math.sin(angle);
-        this.ty = point.y;
-        this.g = direction.z * direction.x * (1 - Math.cos(angle)) - direction.y * Math.sin(angle);
-        this.h = direction.z * direction.y * (1 - Math.cos(angle)) + direction.x * Math.sin(angle);
-        this.i = Math.cos(angle) + direction.z * direction.z * (1 - Math.cos(angle));
-        this.tz = point.z;
+        var cosA = Math.cos(angle);
+        var sinA = Math.sin(angle);
+        this.a = cosA + direction.x * direction.x * (1 - cosA);
+        this.b = direction.x * direction.y * (1 - cosA) - direction.z * sinA;
+        this.c = direction.x * direction.z * (1 - cosA) + direction.y * sinA;
+        this.d = direction.y * direction.x * (1 - cosA) + direction.z * sinA;
+        this.e = cosA + direction.y * direction.y * (1 - cosA);
+        this.f = direction.y * direction.z * (1 - cosA) - direction.x * sinA;
+        this.g = direction.z * direction.x * (1 - cosA) - direction.y * sinA;
+        this.h = direction.z * direction.y * (1 - cosA) + direction.x * sinA;
+        this.i = cosA + direction.z * direction.z * (1 - cosA);
+        this.tx = (this.a - 1) * point.x + this.d * point.y + this.c * point.z;
+        this.ty = this.b * point.x + (this.e - 1) * point.y + this.h * point.z;
+        this.tz = this.c * point.x + this.f * point.y + (this.i - 1) * point.z;
         return this;
     };
     Matrix.prototype.copy = function () {
@@ -266,10 +269,21 @@ var XY = (function () {
     XY.prototype.commonY = function (point, epsilon) { return epsilonEqual(this.y, point.y, epsilon); };
     XY.prototype.commonZ = function (point, epsilon) { return epsilonEqual(this.z, point.z, epsilon); };
     XY.prototype.copy = function () { return new XY(this); };
-    XY.prototype.project = function (plane) {
+    XY.prototype.project = function (plane, vanishingPoint) {
         if (plane === undefined) {
             return new XY(this.x, this.y);
         }
+        var line;
+        if (vanishingPoint === undefined) {
+            line = new Line(this, plane.normal);
+        }
+        else {
+            if (plane.coplanar(vanishingPoint)) {
+                return undefined;
+            }
+            line = new Line(this, this.subtract(vanishingPoint));
+        }
+        return line.intersectionWithPlane(plane);
     };
     XY.origin = new XY(0, 0, 0);
     XY.I = new XY(1, 0, 0);
@@ -358,7 +372,7 @@ var Line = (function (_super) {
         return new Line(this.point.transform(matrix), this.direction.transform(matrix));
     };
     Line.prototype.copy = function () { return new Line(this.point, this.direction); };
-    Line.prototype.project = function (plane) { return new Line(this.point.project(plane), this.direction.project(plane)); };
+    Line.prototype.project = function (plane, vanishingPoint) { return new Line(this.point.project(plane, vanishingPoint), this.direction.project(plane, vanishingPoint)); };
     Line.prototype.bisect = function (line) {
         if (this.parallel(line)) {
             return [new Line(this.point.midpoint(line.point), this.direction)];
@@ -393,6 +407,14 @@ var Line = (function (_super) {
                 .reduce(function (prev, curr) { return prev.concat(curr); }, [])
                 .map(function (ray) { return new Line(ray.origin, ray.direction); }, this);
         }
+    };
+    Line.prototype.intersectionWithPlane = function (plane) {
+        var denominator = this.direction.dot(plane.normal);
+        if (epsilonEqual(denominator, 0)) {
+            return undefined;
+        }
+        var numerator = plane.point.subtract(this.point).dot(plane.normal);
+        return this.point.add(this.direction.scale(numerator / denominator));
     };
     Line.xAxis = new Line(XY.origin, XY.I);
     Line.yAxis = new Line(XY.origin, XY.J);
@@ -465,7 +487,7 @@ var Ray = (function (_super) {
         return new Ray(this.origin.transform(matrix), this.direction.transform(matrix));
     };
     Ray.prototype.copy = function () { return new Ray(this.origin, this.direction); };
-    Ray.prototype.project = function (plane) { return new Ray(this.origin.project(plane), this.direction.project(plane)); };
+    Ray.prototype.project = function (plane, vanishingPoint) { return new Ray(this.origin.project(plane, vanishingPoint), this.direction.project(plane, vanishingPoint)); };
     Ray.prototype.flip = function () { return new Ray(this.origin, this.direction.invert()); };
     Ray.prototype.clipWithEdge = function (edge, epsilon) {
         var intersect = this.intersection(edge, epsilon);
@@ -572,8 +594,9 @@ var Edge = (function (_super) {
         if (answer !== undefined) {
             return answer;
         }
+        var point = new XY(a, b, c);
         return this.nodes
-            .map(function (el) { return { point: el, distance: el.distanceTo(answer) }; }, this)
+            .map(function (el) { return { point: el, distance: el.distanceTo(point) }; }, this)
             .sort(function (a, b) { return a.distance - b.distance; })
             .shift()
             .point;
@@ -591,7 +614,7 @@ var Edge = (function (_super) {
         return new Edge(this.nodes[0].transform(matrix), this.nodes[1].transform(matrix));
     };
     Edge.prototype.copy = function () { return new Edge(this.nodes[0], this.nodes[1]); };
-    Edge.prototype.project = function (plane) { return new Edge(this.nodes[0].project(plane), this.nodes[1].project(plane)); };
+    Edge.prototype.project = function (plane, vanishingPoint) { return new Edge(this.nodes[0].project(plane, vanishingPoint), this.nodes[1].project(plane, vanishingPoint)); };
     Edge.prototype.midpoint = function () { return this.nodes[0].midpoint(this.nodes[1]); };
     Edge.prototype.perpendicularBisector = function () { return new Plane(this.midpoint(), this.vector()); };
     Edge.prototype.infiniteLine = function () { return new Line(this.nodes[0], this.nodes[1].subtract(this.nodes[0])); };
@@ -659,10 +682,9 @@ var Plane = (function () {
             this.normal = new XY(d, e, f);
         }
     }
-    Plane.prototype.parameters = function () { return { a: this.normal.x, b: this.normal.y, c: this.normal.z, d: -1 * this.point.dot(this.normal) }; };
     Plane.prototype.perpendicular = function (plane, epsilon) { return epsilonEqual(this.normal.normalize().cross(plane.normal.normalize()).magnitude(), 1, epsilon); };
     Plane.prototype.parallel = function (plane, epsilon) { return epsilonEqual(this.normal.cross(plane.normal).magnitude(), 0, epsilon); };
-    Plane.prototype.coplanar = function (point, epsilon) { var p = this.parameters(); return epsilonEqual(p.a * point.x + p.b * point.y + p.c * point.z + p.d, 0, epsilon); };
+    Plane.prototype.coplanar = function (point, epsilon) { return epsilonEqual(this.normal.x * point.x + this.normal.y * point.y + this.normal.z * point.z - this.point.dot(this.normal), 0, epsilon); };
     Plane.prototype.equivalent = function (plane, epsilon) { return this.coplanar(plane.point, epsilon) && this.parallel(plane, epsilon); };
     Plane.prototype.degenerate = function (epsilon) { return epsilonEqual(this.normal.magnitude(), 0, epsilon); };
     Plane.prototype.intersection = function (plane, epsilon) {
@@ -901,10 +923,10 @@ var PolygonType = (function () {
         }, this);
         return p;
     };
-    PolygonType.prototype.project = function (plane) {
+    PolygonType.prototype.project = function (plane, vanishingPoint) {
         var p = new Polygon();
         p.nodes = this.vertices().map(function (v) {
-            return v.project(plane);
+            return v.project(plane, vanishingPoint);
         }, this);
         return p;
     };
@@ -1246,8 +1268,8 @@ var Sector = (function () {
             a.endPoints[1].equivalent(this.endPoints[1]);
     };
     Sector.prototype.contains = function (point) {
-        var cross0 = point.subtract(this.endPoints[0]).cross(this.origin.subtract(this.endPoints[0]));
-        var cross1 = point.subtract(this.origin).cross(this.endPoints[1].subtract(this.origin));
+        var cross0 = this.origin.subtract(this.endPoints[0]).cross(point.subtract(this.endPoints[0]));
+        var cross1 = this.endPoints[1].subtract(this.origin).cross(point.subtract(this.origin));
         return cross0.sign() < 0 && cross1.sign() < 0;
     };
     Sector.prototype.sortByClockwise = function () { };
@@ -3378,7 +3400,7 @@ var CreaseSector = (function (_super) {
         var vec0 = this.edges[0].vector(this.origin);
         var angle0 = Math.atan2(vec0.y, vec0.x);
         var newA = angle0 + dEven;
-        var solution = new Ray(new XY(this.origin.x, this.origin.y), new XY(Math.cos(newA), Math.sin(newA)));
+        var solution = new Ray(this.origin, new XY(Math.cos(newA), Math.sin(newA)));
         if (this.contains(solution.origin.add(solution.direction))) {
             return new CPRay(this.origin.graph, solution);
         }
@@ -3511,7 +3533,7 @@ var Crease = (function (_super) {
     Crease.prototype.valley = function (degrees) { this.orientation = CreaseDirection.valley; this.angle = isValidNumber(degrees) ? Math.PI * degrees / 180 : Math.PI; return this; };
     Crease.prototype.border = function () { this.orientation = CreaseDirection.border; this.angle = 0; return this; };
     Crease.prototype.creaseToEdge = function (edge) { return this.graph.creaseEdgeToEdge(this, edge); };
-    Crease.prototype.rotationMatrix = function (angle) { return new Edge(this).rotationMatrix(isValidNumber(angle) ? angle : this.angle); };
+    Crease.prototype.rotationMatrix = function (angle) { return new Matrix().reflection(new Plane(this.pointOnLine(), this.vector().cross(XY.K))); };
     return Crease;
 }(PlanarEdge));
 var CreaseFace = (function (_super) {
@@ -4281,7 +4303,11 @@ var CreasePattern = (function (_super) {
         file["file_author"] = "";
         file["file_classes"] = ["singleModel"];
         file["vertices_coords"] = this.nodes.map(function (node) {
-            return [cleanNumber(node.x, 12), cleanNumber(node.y, 12)];
+            var coords = [cleanNumber(node.x, 12), cleanNumber(node.y, 12)];
+            if (!epsilonEqual(node.z, 0)) {
+                coords.push(cleanNumber(node.z));
+            }
+            return coords;
         }, this);
         file["faces_vertices"] = this.faces.map(function (face) {
             return face.nodes.map(function (node) { return node.index; }, this);
@@ -4296,6 +4322,15 @@ var CreasePattern = (function (_super) {
                 case CreaseDirection.valley: return "V";
                 case CreaseDirection.mark: return "F";
                 default: return "U";
+            }
+        }, this);
+        file["edges_foldAngle"] = this.edges.map(function (edge) {
+            switch (edge.orientation) {
+                case CreaseDirection.border: return 0;
+                case CreaseDirection.mountain: return -1 * edge.angle * 180 / Math.PI;
+                case CreaseDirection.valley: return edge.angle * 180 / Math.PI;
+                case CreaseDirection.mark: return 0;
+                default: return 0;
             }
         }, this);
         return file;
@@ -4328,6 +4363,11 @@ var CreasePattern = (function (_super) {
         file["edges_assignment"]
             .map(function (assignment) { return assignmentDictionary[assignment]; })
             .forEach(function (orientation, i) { this.edges[i].orientation = orientation; }, this);
+        if (file["edges_foldAngle"] !== undefined) {
+            file["edges_foldAngle"]
+                .map(function (foldAngle) { return Math.abs(foldAngle * Math.PI / 180); })
+                .forEach(function (angle, i) { this.edges[i].angle = angle; }, this);
+        }
         this.faces = file["faces_vertices"]
             .map(function (faceNodeArray, fi) {
             var face = new CreaseFace(this);
@@ -4504,121 +4544,6 @@ var CreasePattern = (function (_super) {
     };
     return CreasePattern;
 }(PlanarGraph));
-!function (t) { if ("object" == typeof exports && "undefined" != typeof module)
-    module.exports = t();
-else if ("function" == typeof define && define.amd)
-    define([], t);
-else {
-    var i;
-    i = "undefined" != typeof window ? window : "undefined" != typeof global ? global : "undefined" != typeof self ? self : this, i.rbush = t();
-} }(function () { return function t(i, n, e) { function r(h, o) { if (!n[h]) {
-    if (!i[h]) {
-        var s = "function" == typeof require && require;
-        if (!o && s)
-            return s(h, !0);
-        if (a)
-            return a(h, !0);
-        var l = new Error("Cannot find module '" + h + "'");
-        throw l.code = "MODULE_NOT_FOUND", l;
-    }
-    var f = n[h] = { exports: {} };
-    i[h][0].call(f.exports, function (t) { var n = i[h][1][t]; return r(n ? n : t); }, f, f.exports, t, i, n, e);
-} return n[h].exports; } for (var a = "function" == typeof require && require, h = 0; h < e.length; h++)
-    r(e[h]); return r; }({ 1: [function (t, i, n) {
-            "use strict";
-            function e(t, i) { return this instanceof e ? (this._maxEntries = Math.max(4, t || 9), this._minEntries = Math.max(2, Math.ceil(.4 * this._maxEntries)), i && this._initFormat(i), void this.clear()) : new e(t, i); }
-            function r(t, i, n) { if (!n)
-                return i.indexOf(t); for (var e = 0; e < i.length; e++)
-                if (n(t, i[e]))
-                    return e; return -1; }
-            function a(t, i) { h(t, 0, t.children.length, i, t); }
-            function h(t, i, n, e, r) { r || (r = p(null)), r.minX = 1 / 0, r.minY = 1 / 0, r.maxX = -(1 / 0), r.maxY = -(1 / 0); for (var a, h = i; h < n; h++)
-                a = t.children[h], o(r, t.leaf ? e(a) : a); return r; }
-            function o(t, i) { return t.minX = Math.min(t.minX, i.minX), t.minY = Math.min(t.minY, i.minY), t.maxX = Math.max(t.maxX, i.maxX), t.maxY = Math.max(t.maxY, i.maxY), t; }
-            function s(t, i) { return t.minX - i.minX; }
-            function l(t, i) { return t.minY - i.minY; }
-            function f(t) { return (t.maxX - t.minX) * (t.maxY - t.minY); }
-            function u(t) { return t.maxX - t.minX + (t.maxY - t.minY); }
-            function c(t, i) { return (Math.max(i.maxX, t.maxX) - Math.min(i.minX, t.minX)) * (Math.max(i.maxY, t.maxY) - Math.min(i.minY, t.minY)); }
-            function m(t, i) { var n = Math.max(t.minX, i.minX), e = Math.max(t.minY, i.minY), r = Math.min(t.maxX, i.maxX), a = Math.min(t.maxY, i.maxY); return Math.max(0, r - n) * Math.max(0, a - e); }
-            function d(t, i) { return t.minX <= i.minX && t.minY <= i.minY && i.maxX <= t.maxX && i.maxY <= t.maxY; }
-            function x(t, i) { return i.minX <= t.maxX && i.minY <= t.maxY && i.maxX >= t.minX && i.maxY >= t.minY; }
-            function p(t) { return { children: t, height: 1, leaf: !0, minX: 1 / 0, minY: 1 / 0, maxX: -(1 / 0), maxY: -(1 / 0) }; }
-            function M(t, i, n, e, r) { for (var a, h = [i, n]; h.length;)
-                n = h.pop(), i = h.pop(), n - i <= e || (a = i + Math.ceil((n - i) / e / 2) * e, g(t, a, i, n, r), h.push(i, a, a, n)); }
-            i.exports = e;
-            var g = t("quickselect");
-            e.prototype = { all: function () { return this._all(this.data, []); }, search: function (t) { var i = this.data, n = [], e = this.toBBox; if (!x(t, i))
-                    return n; for (var r, a, h, o, s = []; i;) {
-                    for (r = 0, a = i.children.length; r < a; r++)
-                        h = i.children[r], o = i.leaf ? e(h) : h, x(t, o) && (i.leaf ? n.push(h) : d(t, o) ? this._all(h, n) : s.push(h));
-                    i = s.pop();
-                } return n; }, collides: function (t) { var i = this.data, n = this.toBBox; if (!x(t, i))
-                    return !1; for (var e, r, a, h, o = []; i;) {
-                    for (e = 0, r = i.children.length; e < r; e++)
-                        if (a = i.children[e], h = i.leaf ? n(a) : a, x(t, h)) {
-                            if (i.leaf || d(t, h))
-                                return !0;
-                            o.push(a);
-                        }
-                    i = o.pop();
-                } return !1; }, load: function (t) { if (!t || !t.length)
-                    return this; if (t.length < this._minEntries) {
-                    for (var i = 0, n = t.length; i < n; i++)
-                        this.insert(t[i]);
-                    return this;
-                } var e = this._build(t.slice(), 0, t.length - 1, 0); if (this.data.children.length)
-                    if (this.data.height === e.height)
-                        this._splitRoot(this.data, e);
-                    else {
-                        if (this.data.height < e.height) {
-                            var r = this.data;
-                            this.data = e, e = r;
-                        }
-                        this._insert(e, this.data.height - e.height - 1, !0);
-                    }
-                else
-                    this.data = e; return this; }, insert: function (t) { return t && this._insert(t, this.data.height - 1), this; }, clear: function () { return this.data = p([]), this; }, remove: function (t, i) { if (!t)
-                    return this; for (var n, e, a, h, o = this.data, s = this.toBBox(t), l = [], f = []; o || l.length;) {
-                    if (o || (o = l.pop(), e = l[l.length - 1], n = f.pop(), h = !0), o.leaf && (a = r(t, o.children, i), a !== -1))
-                        return o.children.splice(a, 1), l.push(o), this._condense(l), this;
-                    h || o.leaf || !d(o, s) ? e ? (n++, o = e.children[n], h = !1) : o = null : (l.push(o), f.push(n), n = 0, e = o, o = o.children[0]);
-                } return this; }, toBBox: function (t) { return t; }, compareMinX: s, compareMinY: l, toJSON: function () { return this.data; }, fromJSON: function (t) { return this.data = t, this; }, _all: function (t, i) { for (var n = []; t;)
-                    t.leaf ? i.push.apply(i, t.children) : n.push.apply(n, t.children), t = n.pop(); return i; }, _build: function (t, i, n, e) { var r, h = n - i + 1, o = this._maxEntries; if (h <= o)
-                    return r = p(t.slice(i, n + 1)), a(r, this.toBBox), r; e || (e = Math.ceil(Math.log(h) / Math.log(o)), o = Math.ceil(h / Math.pow(o, e - 1))), r = p([]), r.leaf = !1, r.height = e; var s, l, f, u, c = Math.ceil(h / o), m = c * Math.ceil(Math.sqrt(o)); for (M(t, i, n, m, this.compareMinX), s = i; s <= n; s += m)
-                    for (f = Math.min(s + m - 1, n), M(t, s, f, c, this.compareMinY), l = s; l <= f; l += c)
-                        u = Math.min(l + c - 1, f), r.children.push(this._build(t, l, u, e - 1)); return a(r, this.toBBox), r; }, _chooseSubtree: function (t, i, n, e) { for (var r, a, h, o, s, l, u, m;;) {
-                    if (e.push(i), i.leaf || e.length - 1 === n)
-                        break;
-                    for (u = m = 1 / 0, r = 0, a = i.children.length; r < a; r++)
-                        h = i.children[r], s = f(h), l = c(t, h) - s, l < m ? (m = l, u = s < u ? s : u, o = h) : l === m && s < u && (u = s, o = h);
-                    i = o || i.children[0];
-                } return i; }, _insert: function (t, i, n) { var e = this.toBBox, r = n ? t : e(t), a = [], h = this._chooseSubtree(r, this.data, i, a); for (h.children.push(t), o(h, r); i >= 0 && a[i].children.length > this._maxEntries;)
-                    this._split(a, i), i--; this._adjustParentBBoxes(r, a, i); }, _split: function (t, i) { var n = t[i], e = n.children.length, r = this._minEntries; this._chooseSplitAxis(n, r, e); var h = this._chooseSplitIndex(n, r, e), o = p(n.children.splice(h, n.children.length - h)); o.height = n.height, o.leaf = n.leaf, a(n, this.toBBox), a(o, this.toBBox), i ? t[i - 1].children.push(o) : this._splitRoot(n, o); }, _splitRoot: function (t, i) { this.data = p([t, i]), this.data.height = t.height + 1, this.data.leaf = !1, a(this.data, this.toBBox); }, _chooseSplitIndex: function (t, i, n) { var e, r, a, o, s, l, u, c; for (l = u = 1 / 0, e = i; e <= n - i; e++)
-                    r = h(t, 0, e, this.toBBox), a = h(t, e, n, this.toBBox), o = m(r, a), s = f(r) + f(a), o < l ? (l = o, c = e, u = s < u ? s : u) : o === l && s < u && (u = s, c = e); return c; }, _chooseSplitAxis: function (t, i, n) { var e = t.leaf ? this.compareMinX : s, r = t.leaf ? this.compareMinY : l, a = this._allDistMargin(t, i, n, e), h = this._allDistMargin(t, i, n, r); a < h && t.children.sort(e); }, _allDistMargin: function (t, i, n, e) { t.children.sort(e); var r, a, s = this.toBBox, l = h(t, 0, i, s), f = h(t, n - i, n, s), c = u(l) + u(f); for (r = i; r < n - i; r++)
-                    a = t.children[r], o(l, t.leaf ? s(a) : a), c += u(l); for (r = n - i - 1; r >= i; r--)
-                    a = t.children[r], o(f, t.leaf ? s(a) : a), c += u(f); return c; }, _adjustParentBBoxes: function (t, i, n) { for (var e = n; e >= 0; e--)
-                    o(i[e], t); }, _condense: function (t) { for (var i, n = t.length - 1; n >= 0; n--)
-                    0 === t[n].children.length ? n > 0 ? (i = t[n - 1].children, i.splice(i.indexOf(t[n]), 1)) : this.clear() : a(t[n], this.toBBox); }, _initFormat: function (t) { var i = ["return a", " - b", ";"]; this.compareMinX = new Function("a", "b", i.join(t[0])), this.compareMinY = new Function("a", "b", i.join(t[1])), this.toBBox = new Function("a", "return {minX: a" + t[0] + ", minY: a" + t[1] + ", maxX: a" + t[2] + ", maxY: a" + t[3] + "};"); } };
-        }, { quickselect: 2 }], 2: [function (t, i, n) {
-            "use strict";
-            function e(t, i, n, a, h) { for (; a > n;) {
-                if (a - n > 600) {
-                    var o = a - n + 1, s = i - n + 1, l = Math.log(o), f = .5 * Math.exp(2 * l / 3), u = .5 * Math.sqrt(l * f * (o - f) / o) * (s - o / 2 < 0 ? -1 : 1), c = Math.max(n, Math.floor(i - s * f / o + u)), m = Math.min(a, Math.floor(i + (o - s) * f / o + u));
-                    e(t, i, c, m, h);
-                }
-                var d = t[i], x = n, p = a;
-                for (r(t, n, i), h(t[a], d) > 0 && r(t, n, a); x < p;) {
-                    for (r(t, x, p), x++, p--; h(t[x], d) < 0;)
-                        x++;
-                    for (; h(t[p], d) > 0;)
-                        p--;
-                }
-                0 === h(t[n], d) ? r(t, n, p) : (p++, r(t, p, a)), p <= i && (n = p + 1), i <= p && (a = p - 1);
-            } }
-            function r(t, i, n) { var e = t[i]; t[i] = t[n], t[n] = e; }
-            i.exports = e;
-        }, {}] }, {}, [1])(1); });
 var ComplexNumber = (function () {
     function ComplexNumber(a, b) {
         if (a instanceof ComplexNumber) {
@@ -4808,3 +4733,118 @@ var CubicEquation = (function (_super) {
     };
     return CubicEquation;
 }(Polynomial));
+!function (t) { if ("object" == typeof exports && "undefined" != typeof module)
+    module.exports = t();
+else if ("function" == typeof define && define.amd)
+    define([], t);
+else {
+    var i;
+    i = "undefined" != typeof window ? window : "undefined" != typeof global ? global : "undefined" != typeof self ? self : this, i.rbush = t();
+} }(function () { return function t(i, n, e) { function r(h, o) { if (!n[h]) {
+    if (!i[h]) {
+        var s = "function" == typeof require && require;
+        if (!o && s)
+            return s(h, !0);
+        if (a)
+            return a(h, !0);
+        var l = new Error("Cannot find module '" + h + "'");
+        throw l.code = "MODULE_NOT_FOUND", l;
+    }
+    var f = n[h] = { exports: {} };
+    i[h][0].call(f.exports, function (t) { var n = i[h][1][t]; return r(n ? n : t); }, f, f.exports, t, i, n, e);
+} return n[h].exports; } for (var a = "function" == typeof require && require, h = 0; h < e.length; h++)
+    r(e[h]); return r; }({ 1: [function (t, i, n) {
+            "use strict";
+            function e(t, i) { return this instanceof e ? (this._maxEntries = Math.max(4, t || 9), this._minEntries = Math.max(2, Math.ceil(.4 * this._maxEntries)), i && this._initFormat(i), void this.clear()) : new e(t, i); }
+            function r(t, i, n) { if (!n)
+                return i.indexOf(t); for (var e = 0; e < i.length; e++)
+                if (n(t, i[e]))
+                    return e; return -1; }
+            function a(t, i) { h(t, 0, t.children.length, i, t); }
+            function h(t, i, n, e, r) { r || (r = p(null)), r.minX = 1 / 0, r.minY = 1 / 0, r.maxX = -(1 / 0), r.maxY = -(1 / 0); for (var a, h = i; h < n; h++)
+                a = t.children[h], o(r, t.leaf ? e(a) : a); return r; }
+            function o(t, i) { return t.minX = Math.min(t.minX, i.minX), t.minY = Math.min(t.minY, i.minY), t.maxX = Math.max(t.maxX, i.maxX), t.maxY = Math.max(t.maxY, i.maxY), t; }
+            function s(t, i) { return t.minX - i.minX; }
+            function l(t, i) { return t.minY - i.minY; }
+            function f(t) { return (t.maxX - t.minX) * (t.maxY - t.minY); }
+            function u(t) { return t.maxX - t.minX + (t.maxY - t.minY); }
+            function c(t, i) { return (Math.max(i.maxX, t.maxX) - Math.min(i.minX, t.minX)) * (Math.max(i.maxY, t.maxY) - Math.min(i.minY, t.minY)); }
+            function m(t, i) { var n = Math.max(t.minX, i.minX), e = Math.max(t.minY, i.minY), r = Math.min(t.maxX, i.maxX), a = Math.min(t.maxY, i.maxY); return Math.max(0, r - n) * Math.max(0, a - e); }
+            function d(t, i) { return t.minX <= i.minX && t.minY <= i.minY && i.maxX <= t.maxX && i.maxY <= t.maxY; }
+            function x(t, i) { return i.minX <= t.maxX && i.minY <= t.maxY && i.maxX >= t.minX && i.maxY >= t.minY; }
+            function p(t) { return { children: t, height: 1, leaf: !0, minX: 1 / 0, minY: 1 / 0, maxX: -(1 / 0), maxY: -(1 / 0) }; }
+            function M(t, i, n, e, r) { for (var a, h = [i, n]; h.length;)
+                n = h.pop(), i = h.pop(), n - i <= e || (a = i + Math.ceil((n - i) / e / 2) * e, g(t, a, i, n, r), h.push(i, a, a, n)); }
+            i.exports = e;
+            var g = t("quickselect");
+            e.prototype = { all: function () { return this._all(this.data, []); }, search: function (t) { var i = this.data, n = [], e = this.toBBox; if (!x(t, i))
+                    return n; for (var r, a, h, o, s = []; i;) {
+                    for (r = 0, a = i.children.length; r < a; r++)
+                        h = i.children[r], o = i.leaf ? e(h) : h, x(t, o) && (i.leaf ? n.push(h) : d(t, o) ? this._all(h, n) : s.push(h));
+                    i = s.pop();
+                } return n; }, collides: function (t) { var i = this.data, n = this.toBBox; if (!x(t, i))
+                    return !1; for (var e, r, a, h, o = []; i;) {
+                    for (e = 0, r = i.children.length; e < r; e++)
+                        if (a = i.children[e], h = i.leaf ? n(a) : a, x(t, h)) {
+                            if (i.leaf || d(t, h))
+                                return !0;
+                            o.push(a);
+                        }
+                    i = o.pop();
+                } return !1; }, load: function (t) { if (!t || !t.length)
+                    return this; if (t.length < this._minEntries) {
+                    for (var i = 0, n = t.length; i < n; i++)
+                        this.insert(t[i]);
+                    return this;
+                } var e = this._build(t.slice(), 0, t.length - 1, 0); if (this.data.children.length)
+                    if (this.data.height === e.height)
+                        this._splitRoot(this.data, e);
+                    else {
+                        if (this.data.height < e.height) {
+                            var r = this.data;
+                            this.data = e, e = r;
+                        }
+                        this._insert(e, this.data.height - e.height - 1, !0);
+                    }
+                else
+                    this.data = e; return this; }, insert: function (t) { return t && this._insert(t, this.data.height - 1), this; }, clear: function () { return this.data = p([]), this; }, remove: function (t, i) { if (!t)
+                    return this; for (var n, e, a, h, o = this.data, s = this.toBBox(t), l = [], f = []; o || l.length;) {
+                    if (o || (o = l.pop(), e = l[l.length - 1], n = f.pop(), h = !0), o.leaf && (a = r(t, o.children, i), a !== -1))
+                        return o.children.splice(a, 1), l.push(o), this._condense(l), this;
+                    h || o.leaf || !d(o, s) ? e ? (n++, o = e.children[n], h = !1) : o = null : (l.push(o), f.push(n), n = 0, e = o, o = o.children[0]);
+                } return this; }, toBBox: function (t) { return t; }, compareMinX: s, compareMinY: l, toJSON: function () { return this.data; }, fromJSON: function (t) { return this.data = t, this; }, _all: function (t, i) { for (var n = []; t;)
+                    t.leaf ? i.push.apply(i, t.children) : n.push.apply(n, t.children), t = n.pop(); return i; }, _build: function (t, i, n, e) { var r, h = n - i + 1, o = this._maxEntries; if (h <= o)
+                    return r = p(t.slice(i, n + 1)), a(r, this.toBBox), r; e || (e = Math.ceil(Math.log(h) / Math.log(o)), o = Math.ceil(h / Math.pow(o, e - 1))), r = p([]), r.leaf = !1, r.height = e; var s, l, f, u, c = Math.ceil(h / o), m = c * Math.ceil(Math.sqrt(o)); for (M(t, i, n, m, this.compareMinX), s = i; s <= n; s += m)
+                    for (f = Math.min(s + m - 1, n), M(t, s, f, c, this.compareMinY), l = s; l <= f; l += c)
+                        u = Math.min(l + c - 1, f), r.children.push(this._build(t, l, u, e - 1)); return a(r, this.toBBox), r; }, _chooseSubtree: function (t, i, n, e) { for (var r, a, h, o, s, l, u, m;;) {
+                    if (e.push(i), i.leaf || e.length - 1 === n)
+                        break;
+                    for (u = m = 1 / 0, r = 0, a = i.children.length; r < a; r++)
+                        h = i.children[r], s = f(h), l = c(t, h) - s, l < m ? (m = l, u = s < u ? s : u, o = h) : l === m && s < u && (u = s, o = h);
+                    i = o || i.children[0];
+                } return i; }, _insert: function (t, i, n) { var e = this.toBBox, r = n ? t : e(t), a = [], h = this._chooseSubtree(r, this.data, i, a); for (h.children.push(t), o(h, r); i >= 0 && a[i].children.length > this._maxEntries;)
+                    this._split(a, i), i--; this._adjustParentBBoxes(r, a, i); }, _split: function (t, i) { var n = t[i], e = n.children.length, r = this._minEntries; this._chooseSplitAxis(n, r, e); var h = this._chooseSplitIndex(n, r, e), o = p(n.children.splice(h, n.children.length - h)); o.height = n.height, o.leaf = n.leaf, a(n, this.toBBox), a(o, this.toBBox), i ? t[i - 1].children.push(o) : this._splitRoot(n, o); }, _splitRoot: function (t, i) { this.data = p([t, i]), this.data.height = t.height + 1, this.data.leaf = !1, a(this.data, this.toBBox); }, _chooseSplitIndex: function (t, i, n) { var e, r, a, o, s, l, u, c; for (l = u = 1 / 0, e = i; e <= n - i; e++)
+                    r = h(t, 0, e, this.toBBox), a = h(t, e, n, this.toBBox), o = m(r, a), s = f(r) + f(a), o < l ? (l = o, c = e, u = s < u ? s : u) : o === l && s < u && (u = s, c = e); return c; }, _chooseSplitAxis: function (t, i, n) { var e = t.leaf ? this.compareMinX : s, r = t.leaf ? this.compareMinY : l, a = this._allDistMargin(t, i, n, e), h = this._allDistMargin(t, i, n, r); a < h && t.children.sort(e); }, _allDistMargin: function (t, i, n, e) { t.children.sort(e); var r, a, s = this.toBBox, l = h(t, 0, i, s), f = h(t, n - i, n, s), c = u(l) + u(f); for (r = i; r < n - i; r++)
+                    a = t.children[r], o(l, t.leaf ? s(a) : a), c += u(l); for (r = n - i - 1; r >= i; r--)
+                    a = t.children[r], o(f, t.leaf ? s(a) : a), c += u(f); return c; }, _adjustParentBBoxes: function (t, i, n) { for (var e = n; e >= 0; e--)
+                    o(i[e], t); }, _condense: function (t) { for (var i, n = t.length - 1; n >= 0; n--)
+                    0 === t[n].children.length ? n > 0 ? (i = t[n - 1].children, i.splice(i.indexOf(t[n]), 1)) : this.clear() : a(t[n], this.toBBox); }, _initFormat: function (t) { var i = ["return a", " - b", ";"]; this.compareMinX = new Function("a", "b", i.join(t[0])), this.compareMinY = new Function("a", "b", i.join(t[1])), this.toBBox = new Function("a", "return {minX: a" + t[0] + ", minY: a" + t[1] + ", maxX: a" + t[2] + ", maxY: a" + t[3] + "};"); } };
+        }, { quickselect: 2 }], 2: [function (t, i, n) {
+            "use strict";
+            function e(t, i, n, a, h) { for (; a > n;) {
+                if (a - n > 600) {
+                    var o = a - n + 1, s = i - n + 1, l = Math.log(o), f = .5 * Math.exp(2 * l / 3), u = .5 * Math.sqrt(l * f * (o - f) / o) * (s - o / 2 < 0 ? -1 : 1), c = Math.max(n, Math.floor(i - s * f / o + u)), m = Math.min(a, Math.floor(i + (o - s) * f / o + u));
+                    e(t, i, c, m, h);
+                }
+                var d = t[i], x = n, p = a;
+                for (r(t, n, i), h(t[a], d) > 0 && r(t, n, a); x < p;) {
+                    for (r(t, x, p), x++, p--; h(t[x], d) < 0;)
+                        x++;
+                    for (; h(t[p], d) > 0;)
+                        p--;
+                }
+                0 === h(t[n], d) ? r(t, n, p) : (p++, r(t, p, a)), p <= i && (n = p + 1), i <= p && (a = p - 1);
+            } }
+            function r(t, i, n) { var e = t[i]; t[i] = t[n], t[n] = e; }
+            i.exports = e;
+        }, {}] }, {}, [1])(1); });
