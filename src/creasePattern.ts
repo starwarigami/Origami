@@ -328,8 +328,12 @@ class Crease extends PlanarEdge{
 	// AXIOM 3
 	creaseToEdge(edge:Crease):Crease[]{return this.graph.creaseEdgeToEdge(this, edge);}
 	//override method of Edge to use crease angle by default
-	//rotationMatrix(angle?:number):Matrix{ return new Edge(this).rotationMatrix(isValidNumber(angle) ? angle : this.angle); }
-	rotationMatrix(angle?:number):Matrix{ return new Matrix().reflection(new Plane(this.pointOnLine(), this.vector().cross(XY.K))); }
+	rotationMatrix(angle?:number):Matrix{
+		if (!isValidNumber(angle)) { angle = this.angle; }
+		if (angle == 0) { return new Matrix()/*.identity()*/; }
+		else { return new Edge(this).rotationMatrix(angle); }
+	}
+	//rotationMatrix(angle?:number):Matrix{ return new Matrix().reflection(new Plane(this.pointOnLine(), this.vector().cross(XY.K))); }
 }
 class CreaseFace extends PlanarFace{
 	rabbitEar():Crease[]{
@@ -1443,7 +1447,7 @@ class CreasePattern extends PlanarGraph{
 		var assignmentDictionary = { "B": CreaseDirection.border, "M": CreaseDirection.mountain, "V": CreaseDirection.valley, "F": CreaseDirection.mark, "U": CreaseDirection.mark };
 		file["edges_assignment"]
 			.map(function(assignment){ return assignmentDictionary[assignment]; })
-			.forEach(function(orientation, i){ this.edges[i].orientation = orientation; },this);
+			.forEach(function(orientation, i){ this.edges[i].orientation = orientation; this.edges[i].angle = (orientation == CreaseDirection.valley || orientation == CreaseDirection.mountain) ? Math.PI : 0 },this);
 
 		if (file["edges_foldAngle"] !== undefined) {
 			file["edges_foldAngle"]

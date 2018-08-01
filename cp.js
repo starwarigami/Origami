@@ -2545,7 +2545,7 @@ var PlanarGraph = (function (_super) {
         for (var i = 0; i < faces.length; i++) {
             var found = false;
             for (var j = 0; j < uniqueFaces.length; j++) {
-                if (faces[i].equivalent(uniqueFaces[j])) {
+                if (faces[i].isSimilarToFace(uniqueFaces[j])) {
                     found = true;
                     break;
                 }
@@ -3533,7 +3533,17 @@ var Crease = (function (_super) {
     Crease.prototype.valley = function (degrees) { this.orientation = CreaseDirection.valley; this.angle = isValidNumber(degrees) ? Math.PI * degrees / 180 : Math.PI; return this; };
     Crease.prototype.border = function () { this.orientation = CreaseDirection.border; this.angle = 0; return this; };
     Crease.prototype.creaseToEdge = function (edge) { return this.graph.creaseEdgeToEdge(this, edge); };
-    Crease.prototype.rotationMatrix = function (angle) { return new Matrix().reflection(new Plane(this.pointOnLine(), this.vector().cross(XY.K))); };
+    Crease.prototype.rotationMatrix = function (angle) {
+        if (!isValidNumber(angle)) {
+            angle = this.angle;
+        }
+        if (angle == 0) {
+            return new Matrix();
+        }
+        else {
+            return new Edge(this).rotationMatrix(angle);
+        }
+    };
     return Crease;
 }(PlanarEdge));
 var CreaseFace = (function (_super) {
@@ -4362,7 +4372,7 @@ var CreasePattern = (function (_super) {
         var assignmentDictionary = { "B": CreaseDirection.border, "M": CreaseDirection.mountain, "V": CreaseDirection.valley, "F": CreaseDirection.mark, "U": CreaseDirection.mark };
         file["edges_assignment"]
             .map(function (assignment) { return assignmentDictionary[assignment]; })
-            .forEach(function (orientation, i) { this.edges[i].orientation = orientation; }, this);
+            .forEach(function (orientation, i) { this.edges[i].orientation = orientation; this.edges[i].angle = (orientation == CreaseDirection.valley || orientation == CreaseDirection.mountain) ? Math.PI : 0; }, this);
         if (file["edges_foldAngle"] !== undefined) {
             file["edges_foldAngle"]
                 .map(function (foldAngle) { return Math.abs(foldAngle * Math.PI / 180); })

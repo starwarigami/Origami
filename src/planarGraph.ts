@@ -594,7 +594,7 @@ class PlanarGraph extends Graph{
 		for(var i = 0; i < faces.length; i++){
 			var found = false;
 			for(var j = 0; j < uniqueFaces.length; j++){
-				if(faces[i].equivalent(uniqueFaces[j])){ found = true; break;}
+				if(faces[i].isSimilarToFace(uniqueFaces[j])){ found = true; break;}
 			}
 			if(!found){ uniqueFaces.push(faces[i]); }
 		}
