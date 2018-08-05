@@ -22,7 +22,7 @@ var Tree = (function () {
     return Tree;
 }());
 function isValidPoint(point) { return (point !== undefined && !isNaN(point.x) && !isNaN(point.y)); }
-function isValidNumber(n) { return (n !== undefined && !isNaN(n) && !isNaN(n)); }
+function isValidNumber(n) { return (n !== undefined && !isNaN(n)); }
 function pointsSimilar(a, b, epsilon) {
     if (epsilon == undefined) {
         epsilon = EPSILON_HIGH;
@@ -33,7 +33,7 @@ function epsilonEqual(a, b, epsilon) {
     if (epsilon === undefined) {
         epsilon = EPSILON_HIGH;
     }
-    return (Math.abs(a - b) < epsilon);
+    return (Math.abs(a - b) <= epsilon);
 }
 function cleanNumber(num, decimalPlaces) {
     if (Math.floor(num) == num || decimalPlaces == undefined) {
@@ -65,177 +65,109 @@ function counterClockwiseInteriorAngleRadians(a, b) {
         return b_a;
     return Math.PI * 2 - (a - b);
 }
-function clockwiseInteriorAngle(a, b) {
-    var dotProduct = b.x * a.x + b.y * a.y;
-    var determinant = b.x * a.y - b.y * a.x;
-    var angle = Math.atan2(determinant, dotProduct);
-    if (angle < 0) {
-        angle += Math.PI * 2;
-    }
-    return angle;
-}
-function counterClockwiseInteriorAngle(a, b) {
-    var dotProduct = a.x * b.x + a.y * b.y;
-    var determinant = a.x * b.y - a.y * b.x;
-    var angle = Math.atan2(determinant, dotProduct);
-    if (angle < 0) {
-        angle += Math.PI * 2;
-    }
-    return angle;
-}
-function interiorAngles(a, b) {
-    var interior1 = clockwiseInteriorAngle(a, b);
-    var interior2 = Math.PI * 2 - interior1;
-    if (interior1 < interior2)
-        return [interior1, interior2];
-    return [interior2, interior1];
-}
-function bisectVectors(a, b) {
-    a = a.normalize();
-    b = b.normalize();
-    return [(a.add(b)).normalize(),
-        new XY(-a.x + -b.x, -a.y + -b.y).normalize()];
-}
-function intersect_vec_func(aOrigin, aVec, bOrigin, bVec, compFunction, epsilon) {
-    function determinantXY(a, b) { return a.x * b.y - b.x * a.y; }
-    var denominator0 = determinantXY(aVec, bVec);
-    var denominator1 = -denominator0;
-    if (epsilonEqual(denominator0, 0, epsilon)) {
-        return undefined;
-    }
-    var numerator0 = determinantXY(bOrigin.subtract(aOrigin), bVec);
-    var numerator1 = determinantXY(aOrigin.subtract(bOrigin), aVec);
-    var t0 = numerator0 / denominator0;
-    var t1 = numerator1 / denominator1;
-    if (compFunction(t0, t1)) {
-        return aOrigin.add(aVec.scale(t0));
-    }
-}
-function intersectionLineLine(a, b, epsilon) {
-    if (epsilon === undefined) {
-        epsilon = EPSILON_HIGH;
-    }
-    return intersect_vec_func(new XY(a.point.x, a.point.y), new XY(a.direction.x, a.direction.y), new XY(b.point.x, b.point.y), new XY(b.direction.x, b.direction.y), function (t0, t1) { return true; }, epsilon);
-}
-function intersectionLineRay(line, ray, epsilon) {
-    if (epsilon === undefined) {
-        epsilon = EPSILON_HIGH;
-    }
-    return intersect_vec_func(new XY(line.point.x, line.point.y), new XY(line.direction.x, line.direction.y), new XY(ray.origin.x, ray.origin.y), new XY(ray.direction.x, ray.direction.y), function (t0, t1) { return t1 >= -epsilon; }, epsilon);
-}
-function intersectionLineEdge(line, edge, epsilon) {
-    if (epsilon === undefined) {
-        epsilon = EPSILON_HIGH;
-    }
-    return intersect_vec_func(new XY(line.point.x, line.point.y), new XY(line.direction.x, line.direction.y), new XY(edge.nodes[0].x, edge.nodes[0].y), new XY(edge.nodes[1].x - edge.nodes[0].x, edge.nodes[1].y - edge.nodes[0].y), function (t0, t1) { return t1 >= -epsilon && t1 <= 1 + epsilon; }, epsilon);
-}
-function intersectionRayRay(a, b, epsilon) {
-    if (epsilon === undefined) {
-        epsilon = EPSILON_HIGH;
-    }
-    return intersect_vec_func(new XY(a.origin.x, a.origin.y), new XY(a.direction.x, a.direction.y), new XY(b.origin.x, b.origin.y), new XY(b.direction.x, b.direction.y), function (t0, t1) { return t0 >= -epsilon && t1 >= -epsilon; }, epsilon);
-}
-function intersectionRayEdge(ray, edge, epsilon) {
-    if (epsilon === undefined) {
-        epsilon = EPSILON_HIGH;
-    }
-    return intersect_vec_func(new XY(ray.origin.x, ray.origin.y), new XY(ray.direction.x, ray.direction.y), new XY(edge.nodes[0].x, edge.nodes[0].y), new XY(edge.nodes[1].x - edge.nodes[0].x, edge.nodes[1].y - edge.nodes[0].y), function (t0, t1) { return t0 >= -epsilon && t1 >= -epsilon && t1 <= 1 + epsilon; }, epsilon);
-}
-function intersectionEdgeEdge(a, b, epsilon) {
-    if (epsilon === undefined) {
-        epsilon = EPSILON_HIGH;
-    }
-    return intersect_vec_func(new XY(a.nodes[0].x, a.nodes[0].y), new XY(a.nodes[1].x - a.nodes[0].x, a.nodes[1].y - a.nodes[0].y), new XY(b.nodes[0].x, b.nodes[0].y), new XY(b.nodes[1].x - b.nodes[0].x, b.nodes[1].y - b.nodes[0].y), function (t0, t1) { return t0 >= -epsilon && t0 <= 1 + epsilon && t1 >= -epsilon && t1 <= 1 + epsilon; }, epsilon);
-}
-function intersectionCircleLine(center, radius, p0, p1) {
-    var r_squared = Math.pow(radius, 2);
-    var x1 = p0.x - center.x;
-    var y1 = p0.y - center.y;
-    var x2 = p1.x - center.x;
-    var y2 = p1.y - center.y;
-    var dx = x2 - x1;
-    var dy = y2 - y1;
-    var dr_squared = dx * dx + dy * dy;
-    var D = x1 * y2 - x2 * y1;
-    function sgn(x) { if (x < 0) {
-        return -1;
-    } return 1; }
-    var x1 = (D * dy + sgn(dy) * dx * Math.sqrt(r_squared * dr_squared - (D * D))) / (dr_squared);
-    var x2 = (D * dy - sgn(dy) * dx * Math.sqrt(r_squared * dr_squared - (D * D))) / (dr_squared);
-    var y1 = (-D * dx + Math.abs(dy) * Math.sqrt(r_squared * dr_squared - (D * D))) / (dr_squared);
-    var y2 = (-D * dx - Math.abs(dy) * Math.sqrt(r_squared * dr_squared - (D * D))) / (dr_squared);
-    var intersections = [];
-    if (!isNaN(x1)) {
-        intersections.push(new XY(x1 + center.x, y1 + center.y));
-    }
-    if (!isNaN(x2)) {
-        intersections.push(new XY(x2 + center.x, y2 + center.y));
-    }
-    return intersections;
-}
 var Matrix = (function () {
-    function Matrix(a, b, c, d, tx, ty) {
-        this.a = (a !== undefined) ? a : 1;
-        this.b = (b !== undefined) ? b : 0;
-        this.c = (c !== undefined) ? c : 0;
-        this.d = (d !== undefined) ? d : 1;
-        this.tx = (tx !== undefined) ? tx : 0;
-        this.ty = (ty !== undefined) ? ty : 0;
+    function Matrix(a, b, d, e, tx, ty) {
+        this.a = isValidNumber(a) ? a : 1;
+        this.b = isValidNumber(b) ? b : 0;
+        this.c = 0;
+        this.d = isValidNumber(d) ? d : 0;
+        this.e = isValidNumber(e) ? e : 1;
+        this.f = 0;
+        this.g = 0;
+        this.h = 0;
+        this.i = 1;
+        this.tx = isValidNumber(tx) ? tx : 0;
+        this.ty = isValidNumber(ty) ? ty : 0;
+        this.tz = 0;
     }
-    Matrix.prototype.identity = function () { this.a = 1; this.b = 0; this.c = 0; this.d = 1; this.tx = 0; this.ty = 0; return this; };
+    Matrix.prototype.identity = function () { this.a = 1; this.b = 0; this.c = 0; this.d = 0; this.e = 1; this.f = 0; this.g = 0; this.h = 0; this.i = 1; this.tx = 0; this.ty = 0; this.tz = 0; return this; };
     Matrix.prototype.mult = function (mat) {
         var r = new Matrix();
-        r.a = this.a * mat.a + this.c * mat.b;
-        r.c = this.a * mat.c + this.c * mat.d;
-        r.tx = this.a * mat.tx + this.c * mat.ty + this.tx;
-        r.b = this.b * mat.a + this.d * mat.b;
-        r.d = this.b * mat.c + this.d * mat.d;
-        r.ty = this.b * mat.tx + this.d * mat.ty + this.ty;
+        r.a = this.a * mat.a + this.d * mat.b + this.g * mat.c;
+        r.d = this.a * mat.d + this.d * mat.e + this.g * mat.f;
+        r.g = this.a * mat.g + this.d * mat.h + this.g * mat.i;
+        r.tx = this.a * mat.tx + this.d * mat.ty + this.g * mat.tz + this.tx;
+        r.b = this.b * mat.a + this.e * mat.b + this.h * mat.c;
+        r.e = this.b * mat.d + this.e * mat.e + this.h * mat.f;
+        r.h = this.b * mat.g + this.e * mat.h + this.h * mat.i;
+        r.ty = this.b * mat.tx + this.e * mat.ty + this.h * mat.tz + this.ty;
+        r.c = this.c * mat.a + this.f * mat.b + this.i * mat.c;
+        r.f = this.c * mat.d + this.f * mat.e + this.i * mat.f;
+        r.i = this.c * mat.g + this.f * mat.h + this.i * mat.i;
+        r.tz = this.c * mat.tx + this.f * mat.ty + this.i * mat.tz + this.tz;
         return r;
     };
-    Matrix.prototype.reflection = function (vector, offset) {
-        var angle = Math.atan2(vector.y, vector.x);
-        var cosAngle = Math.cos(angle);
-        var sinAngle = Math.sin(angle);
-        var _cosAngle = Math.cos(-angle);
-        var _sinAngle = Math.sin(-angle);
-        this.a = cosAngle * _cosAngle + sinAngle * _sinAngle;
-        this.b = cosAngle * -_sinAngle + sinAngle * _cosAngle;
-        this.c = sinAngle * _cosAngle + -cosAngle * _sinAngle;
-        this.d = sinAngle * -_sinAngle + -cosAngle * _cosAngle;
-        if (offset !== undefined) {
-            this.tx = offset.x + this.a * -offset.x + -offset.y * this.c;
-            this.ty = offset.y + this.b * -offset.x + -offset.y * this.d;
-        }
+    Matrix.prototype.transform = function (point) {
+        return new XY(point.x * this.a + point.y * this.d + point.z * this.g + this.tx, point.x * this.b + point.y * this.e + point.z * this.h + this.ty, point.x * this.c + point.y * this.f + point.z * this.i + this.tz);
+    };
+    Matrix.prototype.reflection = function (line) {
+        var normal = line.vector().rotate90().normalize();
+        var a = normal.x;
+        var b = normal.y;
+        var d = line.pointOnLine().dot(normal);
+        this.a = 1 - 2 * a * a;
+        this.d = -2 * a * b;
+        this.g = 0;
+        this.tx = 2 * a * d;
+        this.b = -2 * b * a;
+        this.e = 1 - 2 * b * b;
+        this.h = 0;
+        this.ty = 2 * b * d;
+        this.c = 0;
+        this.f = 0;
+        this.i = 1;
+        this.tz = 0;
         return this;
     };
-    Matrix.prototype.rotation = function (angle, origin) {
-        this.a = Math.cos(angle);
-        this.c = -Math.sin(angle);
-        this.b = Math.sin(angle);
-        this.d = Math.cos(angle);
-        if (origin !== undefined) {
-            this.tx = origin.x;
-            this.ty = origin.y;
-        }
+    Matrix.prototype.rotation = function (angle, axis) {
+        var point = axis === undefined ? XY.origin : axis.pointOnLine().invert();
+        var direction = axis === undefined ? XY.K : axis.vector().normalize();
+        var cosA = Math.cos(angle);
+        var sinA = Math.sin(angle);
+        this.a = cosA + direction.x * direction.x * (1 - cosA);
+        this.b = direction.x * direction.y * (1 - cosA) - direction.z * sinA;
+        this.c = direction.x * direction.z * (1 - cosA) + direction.y * sinA;
+        this.d = direction.y * direction.x * (1 - cosA) + direction.z * sinA;
+        this.e = cosA + direction.y * direction.y * (1 - cosA);
+        this.f = direction.y * direction.z * (1 - cosA) - direction.x * sinA;
+        this.g = direction.z * direction.x * (1 - cosA) - direction.y * sinA;
+        this.h = direction.z * direction.y * (1 - cosA) + direction.x * sinA;
+        this.i = cosA + direction.z * direction.z * (1 - cosA);
+        this.tx = (this.a - 1) * point.x + this.d * point.y + this.c * point.z;
+        this.ty = this.b * point.x + (this.e - 1) * point.y + this.h * point.z;
+        this.tz = this.c * point.x + this.f * point.y + (this.i - 1) * point.z;
         return this;
     };
     Matrix.prototype.copy = function () {
         var m = new Matrix();
         m.a = this.a;
-        m.c = this.c;
+        m.d = this.d;
+        m.g = this.g;
         m.tx = this.tx;
         m.b = this.b;
-        m.d = this.d;
+        m.e = this.e;
+        m.h = this.h;
         m.ty = this.ty;
+        m.c = this.c;
+        m.f = this.f;
+        m.i = this.i;
+        m.tz = this.tz;
         return m;
     };
     return Matrix;
 }());
 var XY = (function () {
-    function XY(x, y) {
-        this.x = x;
-        this.y = y;
+    function XY(a, b, c) {
+        if (isValidPoint(a)) {
+            this.x = a.x;
+            this.y = a.y;
+            this.z = isValidNumber(a.z) ? a.z : 0;
+        }
+        else {
+            this.x = isValidNumber(a) ? a : 0;
+            this.y = isValidNumber(b) ? b : 0;
+            this.z = isValidNumber(c) ? c : 0;
+        }
     }
     XY.prototype.equivalent = function (point, epsilon) {
         if (epsilon == undefined) {
@@ -243,27 +175,52 @@ var XY = (function () {
         }
         return (epsilonEqual(this.x, point.x, epsilon) && epsilonEqual(this.y, point.y, epsilon));
     };
-    XY.prototype.normalize = function () { var m = this.magnitude(); return new XY(this.x / m, this.y / m); };
-    XY.prototype.dot = function (point) { return this.x * point.x + this.y * point.y; };
+    XY.prototype.normalize = function () { var m = this.magnitude(); return this.scale(1 / m); };
+    XY.prototype.dot = function (vector) { return this.x * vector.x + this.y * vector.y; };
     XY.prototype.cross = function (vector) { return this.x * vector.y - this.y * vector.x; };
-    XY.prototype.magnitude = function () { return Math.sqrt(this.x * this.x + this.y * this.y); };
-    XY.prototype.distanceTo = function (a) { return Math.sqrt(Math.pow(this.x - a.x, 2) + Math.pow(this.y - a.y, 2)); };
-    XY.prototype.transform = function (matrix) {
-        return new XY(this.x * matrix.a + this.y * matrix.c + matrix.tx, this.x * matrix.b + this.y * matrix.d + matrix.ty);
+    XY.prototype.clockwiseInteriorAngle = function (vector) {
+        var angle = Math.atan2(vector.cross(this), vector.dot(this));
+        if (angle < 0) {
+            angle += Math.PI * 2;
+        }
+        return angle;
     };
-    XY.prototype.translate = function (dx, dy) { return new XY(this.x + dx, this.y + dy); };
+    XY.prototype.counterClockwiseInteriorAngle = function (vector) {
+        var angle = Math.atan2(this.cross(vector), this.dot(vector));
+        if (angle < 0) {
+            angle += Math.PI * 2;
+        }
+        return angle;
+    };
+    XY.prototype.interiorAngles = function (vector) {
+        var interior1 = this.clockwiseInteriorAngle(vector);
+        var interior2 = Math.PI * 2 - interior1;
+        if (interior1 < interior2)
+            return [interior1, interior2];
+        return [interior2, interior1];
+    };
+    XY.prototype.bisect = function (vector) {
+        var n1 = this.normalize();
+        var n2 = vector.normalize();
+        var n3 = n1.invert();
+        return [n1.add(n2).normalize(),
+            n3.subtract(n2).normalize()];
+    };
+    XY.prototype.magnitude = function () { return Math.sqrt(this.dot(this)); };
+    XY.prototype.distanceTo = function (a) { return a.subtract(this).magnitude(); };
+    XY.prototype.transform = function (matrix) {
+        return matrix.transform(this);
+    };
+    XY.prototype.translate = function (dx, dy) { return this.add(dx, dy); };
     XY.prototype.rotate90 = function () { return new XY(-this.y, this.x); };
     XY.prototype.rotate180 = function () { return new XY(-this.x, -this.y); };
     XY.prototype.rotate270 = function () { return new XY(this.y, -this.x); };
-    XY.prototype.rotate = function (angle, origin) { return this.transform(new Matrix().rotation(angle, origin)); };
+    XY.prototype.rotate = function (angle) { return this.transform(new Matrix().rotation(angle)); };
     XY.prototype.lerp = function (point, pct) { var inv = 1.0 - pct; return new XY(this.x * pct + point.x * inv, this.y * pct + point.y * inv); };
-    XY.prototype.midpoint = function (other) { return new XY((this.x + other.x) * 0.5, (this.y + other.y) * 0.5); };
-    XY.prototype.reflect = function (line) {
-        var origin = (line.direction != undefined) ? (line.point || line.origin) : new XY(line.nodes[0].x, line.nodes[0].y);
-        var vector = (line.direction != undefined) ? line.direction : new XY(line.nodes[1].x, line.nodes[1].y).subtract(origin);
-        return this.transform(new Matrix().reflection(vector, origin));
-    };
+    XY.prototype.midpoint = function (other) { return this.lerp(other, 0.5); };
+    XY.prototype.reflect = function (line) { return this.transform(new Matrix().reflection(line)); };
     XY.prototype.scale = function (magnitude) { return new XY(this.x * magnitude, this.y * magnitude); };
+    XY.prototype.invert = function () { return this.scale(-1); };
     XY.prototype.add = function (a, b) {
         if (isValidPoint(a)) {
             return new XY(this.x + a.x, this.y + a.y);
@@ -277,54 +234,76 @@ var XY = (function () {
     XY.prototype.abs = function () { return new XY(Math.abs(this.x), Math.abs(this.y)); };
     XY.prototype.commonX = function (point, epsilon) { return epsilonEqual(this.x, point.x, epsilon); };
     XY.prototype.commonY = function (point, epsilon) { return epsilonEqual(this.y, point.y, epsilon); };
+    XY.prototype.copy = function () { return new XY(this); };
+    XY.prototype.project = function (projection) {
+        if (projection === undefined) {
+            return new XY(this.x, this.y);
+        }
+        return projection.project(this);
+    };
+    XY.origin = new XY(0, 0);
+    XY.I = new XY(1, 0);
+    XY.J = new XY(0, 1);
+    XY.K = new XY(0, 0, 1);
     return XY;
 }());
 var LineType = (function () {
     function LineType() {
     }
-    LineType.prototype.length = function () { };
-    LineType.prototype.vector = function () { };
-    LineType.prototype.parallel = function (line, epsilon) { };
-    LineType.prototype.collinear = function (point) { };
-    LineType.prototype.equivalent = function (line, epsilon) { };
-    LineType.prototype.degenrate = function (epsilon) { };
-    LineType.prototype.intersection = function (line, epsilon) { };
-    LineType.prototype.reflectionMatrix = function () { };
-    LineType.prototype.nearestPoint = function (point) { };
-    LineType.prototype.nearestPointNormalTo = function (point) { };
-    LineType.prototype.transform = function (matrix) { };
-    return LineType;
-}());
-var Line = (function () {
-    function Line(a, b, c, d) {
-        if (a.x !== undefined) {
-            this.point = new XY(a.x, a.y);
-            this.direction = new XY(b.x, b.y);
-        }
-        else {
-            this.point = new XY(a, b);
-            this.direction = new XY(c, d);
-        }
-    }
-    Line.prototype.rays = function () { var a = new Ray(this.point, this.direction); return [a, a.flip()]; };
-    Line.prototype.length = function () { return Infinity; };
-    Line.prototype.vector = function () { return this.direction; };
-    Line.prototype.parallel = function (line, epsilon) {
+    LineType.prototype.perpendicular = function (line, epsilon) { return epsilonEqual(Math.abs(this.vector().normalize().cross(line.vector().normalize())), 1, epsilon); };
+    LineType.prototype.parallel = function (line, epsilon) { return epsilonEqual(this.vector().cross(line.vector()), 0, epsilon); };
+    LineType.prototype.intersection = function (line, epsilon) {
         if (epsilon === undefined) {
             epsilon = EPSILON_HIGH;
         }
-        var v = (line.nodes !== undefined)
-            ? new XY(line.nodes[1].x - line.nodes[0].x, line.nodes[1].y - line.nodes[0].y)
-            : line.direction;
-        return (v !== undefined) ? epsilonEqual(this.direction.cross(v), 0, epsilon) : undefined;
+        var v0 = this.vector();
+        var v1 = line.vector();
+        var denominator0 = v0.cross(v1);
+        var denominator1 = -denominator0;
+        if (epsilonEqual(denominator0, 0, epsilon)) {
+            return undefined;
+        }
+        var o0 = this.pointOnLine();
+        var o1 = line.pointOnLine();
+        var numerator0 = o1.subtract(o0).cross(v1);
+        var numerator1 = o0.subtract(o1).cross(v0);
+        var t0 = numerator0 / denominator0;
+        var t1 = numerator1 / denominator1;
+        if (this.compFunction(t0, epsilon) && line.compFunction(t1, epsilon)) {
+            return o0.add(v0.scale(t0));
+        }
+        return undefined;
     };
+    LineType.prototype.reflectionMatrix = function () { return new Matrix().reflection(this); };
+    LineType.prototype.rotationMatrix = function (angle) { return new Matrix().rotation(angle, this); };
+    return LineType;
+}());
+var Line = (function (_super) {
+    __extends(Line, _super);
+    function Line(a, b, c, d) {
+        var _this = _super.call(this) || this;
+        if (isValidPoint(a)) {
+            _this.point = new XY(a);
+            _this.direction = new XY(b);
+        }
+        else {
+            _this.point = new XY(a, b);
+            _this.direction = new XY(c, d);
+        }
+        return _this;
+    }
+    Line.prototype.rays = function () { var a = new Ray(this.point, this.direction); return [a, a.flip()]; };
+    Line.prototype.length = function () { return Infinity; };
+    Line.prototype.pointOnLine = function () { return this.point.copy(); };
+    Line.prototype.vector = function () { return this.direction.copy(); };
     Line.prototype.collinear = function (point, epsilon) {
         if (epsilon === undefined) {
             epsilon = EPSILON_HIGH;
         }
-        var x = [this.point.x, this.point.x + this.direction.x, point.x];
-        var y = [this.point.y, this.point.y + this.direction.y, point.y];
-        return epsilonEqual(x[0] * (y[1] - y[2]) + x[1] * (y[2] - y[0]) + x[2] * (y[0] - y[1]), 0, epsilon);
+        if (this.point.equivalent(point, epsilon)) {
+            return true;
+        }
+        return epsilonEqual(this.direction.cross(point.subtract(this.point)), 0, epsilon);
     };
     Line.prototype.equivalent = function (line, epsilon) {
         return this.collinear(line.point, epsilon) && this.parallel(line, epsilon);
@@ -335,35 +314,25 @@ var Line = (function () {
         }
         return epsilonEqual(this.direction.magnitude(), 0, epsilon);
     };
-    Line.prototype.intersection = function (line, epsilon) {
-        if (line instanceof Line) {
-            return intersectionLineLine(this, line, epsilon);
-        }
-        if (line instanceof Ray) {
-            return intersectionLineRay(this, line, epsilon);
-        }
-        if (line instanceof Edge) {
-            return intersectionLineEdge(this, line, epsilon);
-        }
-    };
-    Line.prototype.reflectionMatrix = function () { return new Matrix().reflection(this.direction, this.point); };
-    Line.prototype.nearestPoint = function (point) { return this.nearestPointNormalTo(point); };
-    Line.prototype.nearestPointNormalTo = function (point) {
+    Line.prototype.compFunction = function (t, epsilon) { return true; };
+    Line.prototype.nearestPoint = function (a, b) { return this.nearestPointNormalTo(a, b); };
+    Line.prototype.nearestPointNormalTo = function (a, b) {
+        var point = new XY(a, b);
         var v = this.direction.normalize();
-        var u = ((point.x - this.point.x) * v.x + (point.y - this.point.y) * v.y);
-        return new XY(this.point.x + u * v.x, this.point.y + u * v.y);
+        var u = new XY(point).subtract(this.point).dot(v);
+        return this.point.add(v.scale(u));
     };
     Line.prototype.transform = function (matrix) {
         return new Line(this.point.transform(matrix), this.direction.transform(matrix));
     };
+    Line.prototype.copy = function () { return new Line(this.point, this.direction); };
     Line.prototype.bisect = function (line) {
         if (this.parallel(line)) {
             return [new Line(this.point.midpoint(line.point), this.direction)];
         }
         else {
-            var intersection = intersectionLineLine(this, line);
-            var vectors = bisectVectors(this.direction, line.direction);
-            vectors[1] = vectors[1].rotate90();
+            var intersection = this.intersection(line);
+            var vectors = [this.direction.bisect(line.direction)[0], this.direction.bisect(line.direction.invert())[0]];
             if (Math.abs(this.direction.cross(vectors[1])) < Math.abs(this.direction.cross(vectors[0]))) {
                 var swap = vectors[0];
                 vectors[0] = vectors[1];
@@ -373,58 +342,51 @@ var Line = (function () {
         }
     };
     Line.prototype.subsect = function (line, count) {
-        var pcts = Array.apply(null, Array(count)).map(function (el, i) { return i / count; });
-        pcts.shift();
         if (this.parallel(line)) {
+            var pcts = Array.apply(null, Array(count)).map(function (el, i) { return i / count; });
+            pcts.shift();
             return pcts.map(function (pct) { return new Line(this.point.lerp(line.point, pct), this.direction); }, this);
         }
         else {
-            var intersection = intersectionLineLine(this, line);
+            var intersection = this.intersection(line);
             return [
                 [new Sector(intersection, [intersection.add(this.direction), intersection.add(line.direction)]),
-                    new Sector(intersection, [intersection.add(this.direction), intersection.add(line.direction.rotate180())])
+                    new Sector(intersection, [intersection.add(this.direction), intersection.add(line.direction.invert())])
                 ].sort(function (a, b) { return a.angle() - b.angle(); }).shift(),
                 [new Sector(intersection, [intersection.add(line.direction), intersection.add(this.direction)]),
-                    new Sector(intersection, [intersection.add(line.direction), intersection.add(this.direction.rotate180())])
+                    new Sector(intersection, [intersection.add(line.direction), intersection.add(this.direction.invert())])
                 ].sort(function (a, b) { return a.angle() - b.angle(); }).shift()
             ].map(function (sector) { return sector.subsect(count); }, this)
                 .reduce(function (prev, curr) { return prev.concat(curr); }, [])
                 .map(function (ray) { return new Line(ray.origin, ray.direction); }, this);
         }
     };
+    Line.xAxis = new Line(XY.origin, XY.I);
+    Line.yAxis = new Line(XY.origin, XY.J);
     return Line;
-}());
-var Ray = (function () {
+}(LineType));
+var Ray = (function (_super) {
+    __extends(Ray, _super);
     function Ray(a, b, c, d) {
-        if (a.x !== undefined) {
-            this.origin = new XY(a.x, a.y);
-            this.direction = new XY(b.x, b.y);
+        var _this = _super.call(this) || this;
+        if (isValidPoint(a)) {
+            _this.origin = new XY(a);
+            _this.direction = new XY(b);
         }
         else {
-            this.origin = new XY(a, b);
-            this.direction = new XY(c, d);
+            _this.origin = new XY(a, b);
+            _this.direction = new XY(c, d);
         }
-        ;
+        return _this;
     }
     Ray.prototype.length = function () { return Infinity; };
-    Ray.prototype.vector = function () { return this.direction; };
-    Ray.prototype.parallel = function (line, epsilon) {
-        if (epsilon === undefined) {
-            epsilon = EPSILON_HIGH;
-        }
-        var v = (line.nodes !== undefined)
-            ? new XY(line.nodes[1].x - line.nodes[0].x, line.nodes[1].y - line.nodes[0].y)
-            : line.direction;
-        if (v === undefined) {
-            return undefined;
-        }
-        return epsilonEqual(this.direction.cross(v), 0, epsilon);
-    };
+    Ray.prototype.pointOnLine = function () { return this.origin.copy(); };
+    Ray.prototype.vector = function () { return this.direction.copy(); };
     Ray.prototype.collinear = function (point, epsilon) {
         if (epsilon === undefined) {
             epsilon = EPSILON_HIGH;
         }
-        var pOrigin = new XY(point.x - this.origin.x, point.y - this.origin.y);
+        var pOrigin = new XY(point).subtract(this.origin);
         var dot = pOrigin.dot(this.direction);
         if (dot < -epsilon) {
             return false;
@@ -445,39 +407,30 @@ var Ray = (function () {
         }
         return epsilonEqual(this.direction.magnitude(), 0, epsilon);
     };
-    Ray.prototype.intersection = function (line, epsilon) {
-        if (line instanceof Ray) {
-            return intersectionRayRay(this, line, epsilon);
-        }
-        if (line instanceof Line) {
-            return intersectionLineRay(line, this, epsilon);
-        }
-        if (line instanceof Edge) {
-            return intersectionRayEdge(this, line, epsilon);
-        }
-    };
-    Ray.prototype.reflectionMatrix = function () { return new Matrix().reflection(this.direction, this.origin); };
-    Ray.prototype.nearestPoint = function (point) {
-        var answer = this.nearestPointNormalTo(point);
+    Ray.prototype.compFunction = function (t, epsilon) { return t >= -epsilon; };
+    Ray.prototype.nearestPoint = function (a, b) {
+        var answer = this.nearestPointNormalTo(a, b);
         if (answer !== undefined) {
             return answer;
         }
         return this.origin;
     };
-    Ray.prototype.nearestPointNormalTo = function (point) {
+    Ray.prototype.nearestPointNormalTo = function (a, b) {
+        var point = new XY(a, b);
         var v = this.direction.normalize();
-        var u = ((point.x - this.origin.x) * v.x + (point.y - this.origin.y) * v.y);
+        var u = new XY(point).subtract(this.origin).dot(v);
         if (u < 0) {
             return undefined;
         }
-        return new XY(this.origin.x + u * v.x, this.origin.y + u * v.y);
+        return this.origin.add(v.scale(u));
     };
     Ray.prototype.transform = function (matrix) {
         return new Ray(this.origin.transform(matrix), this.direction.transform(matrix));
     };
-    Ray.prototype.flip = function () { return new Ray(this.origin, new XY(-this.direction.x, -this.direction.y)); };
+    Ray.prototype.copy = function () { return new Ray(this.origin, this.direction); };
+    Ray.prototype.flip = function () { return new Ray(this.origin, this.direction.invert()); };
     Ray.prototype.clipWithEdge = function (edge, epsilon) {
-        var intersect = intersectionRayEdge(this, edge, epsilon);
+        var intersect = this.intersection(edge, epsilon);
         if (intersect === undefined) {
             return undefined;
         }
@@ -500,7 +453,7 @@ var Ray = (function () {
             epsilon = EPSILON_HIGH;
         }
         return edges
-            .map(function (edge) { return intersectionRayEdge(this, edge, epsilon); }, this)
+            .map(function (edge) { return this.intersection(edge, epsilon); }, this)
             .filter(function (point) { return point !== undefined; }, this)
             .map(function (point) { return { point: point, length: point.distanceTo(this.origin) }; }, this)
             .sort(function (a, b) { return a.length - b.length; })
@@ -525,58 +478,46 @@ var Ray = (function () {
             .map(function (el) { return { edge: el.edge, intersection: el.intersection }; });
     };
     return Ray;
-}());
-var Edge = (function () {
+}(LineType));
+var Edge = (function (_super) {
+    __extends(Edge, _super);
     function Edge(a, b, c, d) {
-        if (a.x !== undefined) {
-            this.nodes = [new XY(a.x, a.y), new XY(b.x, b.y)];
+        var _this = _super.call(this) || this;
+        if (isValidPoint(a)) {
+            _this.nodes = [new XY(a), new XY(b)];
         }
         else if (isValidNumber(d)) {
-            this.nodes = [new XY(a, b), new XY(c, d)];
+            _this.nodes = [new XY(a, b), new XY(c, d)];
         }
         else if (a.nodes !== undefined) {
-            this.nodes = [new XY(a.nodes[0].x, a.nodes[0].y), new XY(a.nodes[1].x, a.nodes[1].y)];
+            _this.nodes = [new XY(a.nodes[0]), new XY(a.nodes[1])];
         }
+        return _this;
     }
-    Edge.prototype.length = function () { return Math.sqrt(Math.pow(this.nodes[0].x - this.nodes[1].x, 2) + Math.pow(this.nodes[0].y - this.nodes[1].y, 2)); };
+    Edge.prototype.length = function () { return this.nodes[0].distanceTo(this.nodes[1]); };
+    Edge.prototype.pointOnLine = function () { return this.nodes[0].copy(); };
     Edge.prototype.vector = function (originNode) {
-        if (originNode === undefined) {
-            return this.nodes[1].subtract(this.nodes[0]);
-        }
-        if (this.nodes[0].equivalent(originNode)) {
+        if (originNode === undefined || this.nodes[0].equivalent(originNode)) {
             return this.nodes[1].subtract(this.nodes[0]);
         }
         return this.nodes[0].subtract(this.nodes[1]);
-    };
-    Edge.prototype.parallel = function (line, epsilon) {
-        if (epsilon === undefined) {
-            epsilon = EPSILON_HIGH;
-        }
-        var v = (line.nodes !== undefined)
-            ? new XY(line.nodes[1].x - line.nodes[0].x, line.nodes[1].y - line.nodes[0].y)
-            : line.direction;
-        if (v === undefined) {
-            return undefined;
-        }
-        var u = this.nodes[1].subtract(this.nodes[0]);
-        return epsilonEqual(u.cross(v), 0, epsilon);
     };
     Edge.prototype.collinear = function (point, epsilon) {
         if (epsilon === undefined) {
             epsilon = EPSILON_HIGH;
         }
-        var p0 = new Edge(point, this.nodes[0]).length();
-        var p1 = new Edge(point, this.nodes[1]).length();
-        return epsilonEqual(this.length() - p0 - p1, 0, epsilon);
+        var l0 = new Edge(point, this.nodes[0]).length();
+        var l1 = new Edge(point, this.nodes[1]).length();
+        return epsilonEqual(this.length() - l0 - l1, 0, epsilon);
     };
-    Edge.prototype.equivalent = function (e, epsilon) {
+    Edge.prototype.equivalent = function (edge, epsilon) {
         if (epsilon === undefined) {
             epsilon = EPSILON_HIGH;
         }
-        return ((this.nodes[0].equivalent(e.nodes[0], epsilon) &&
-            this.nodes[1].equivalent(e.nodes[1], epsilon)) ||
-            (this.nodes[0].equivalent(e.nodes[1], epsilon) &&
-                this.nodes[1].equivalent(e.nodes[0], epsilon)));
+        return ((this.nodes[0].equivalent(edge.nodes[0], epsilon) &&
+            this.nodes[1].equivalent(edge.nodes[1], epsilon)) ||
+            (this.nodes[0].equivalent(edge.nodes[1], epsilon) &&
+                this.nodes[1].equivalent(edge.nodes[0], epsilon)));
     };
     Edge.prototype.degenrate = function (epsilon) {
         if (epsilon === undefined) {
@@ -584,49 +525,37 @@ var Edge = (function () {
         }
         return this.nodes[0].equivalent(this.nodes[1], epsilon);
     };
-    Edge.prototype.intersection = function (line, epsilon) {
-        if (line instanceof Edge) {
-            return intersectionEdgeEdge(this, line, epsilon);
-        }
-        if (line instanceof Line) {
-            return intersectionLineEdge(line, this, epsilon);
-        }
-        if (line instanceof Ray) {
-            return intersectionRayEdge(line, this, epsilon);
-        }
-    };
-    Edge.prototype.reflectionMatrix = function () {
-        return new Matrix().reflection(this.nodes[1].subtract(this.nodes[0]), this.nodes[0]);
-    };
-    Edge.prototype.nearestPoint = function (point) {
-        var answer = this.nearestPointNormalTo(point);
+    Edge.prototype.compFunction = function (t, epsilon) { return t >= -epsilon && t <= 1 + epsilon; };
+    Edge.prototype.nearestPoint = function (a, b) {
+        var answer = this.nearestPointNormalTo(a, b);
         if (answer !== undefined) {
             return answer;
         }
+        var point = new XY(a, b);
         return this.nodes
             .map(function (el) { return { point: el, distance: el.distanceTo(point) }; }, this)
             .sort(function (a, b) { return a.distance - b.distance; })
             .shift()
             .point;
     };
-    Edge.prototype.nearestPointNormalTo = function (point) {
+    Edge.prototype.nearestPointNormalTo = function (a, b) {
+        var point = new XY(a, b);
         var p = this.nodes[0].distanceTo(this.nodes[1]);
-        var u = ((point.x - this.nodes[0].x) * (this.nodes[1].x - this.nodes[0].x) + (point.y - this.nodes[0].y) * (this.nodes[1].y - this.nodes[0].y)) / (Math.pow(p, 2));
+        var u = new XY(point).subtract(this.nodes[0]).dot(this.nodes[1].subtract(this.nodes[0])) / Math.pow(p, 2);
         if (u < 0 || u > 1.0) {
             return undefined;
         }
-        return new XY(this.nodes[0].x + u * (this.nodes[1].x - this.nodes[0].x), this.nodes[0].y + u * (this.nodes[1].y - this.nodes[0].y));
+        return this.nodes[0].add(this.nodes[1].subtract(this.nodes[0]).scale(u));
     };
     Edge.prototype.transform = function (matrix) {
         return new Edge(this.nodes[0].transform(matrix), this.nodes[1].transform(matrix));
     };
-    Edge.prototype.midpoint = function () {
-        return new XY(0.5 * (this.nodes[0].x + this.nodes[1].x), 0.5 * (this.nodes[0].y + this.nodes[1].y));
-    };
+    Edge.prototype.copy = function () { return new Edge(this.nodes[0], this.nodes[1]); };
+    Edge.prototype.midpoint = function () { return this.nodes[0].midpoint(this.nodes[1]); };
     Edge.prototype.perpendicularBisector = function () { return new Line(this.midpoint(), this.vector().rotate90()); };
     Edge.prototype.infiniteLine = function () { return new Line(this.nodes[0], this.nodes[1].subtract(this.nodes[0])); };
     return Edge;
-}());
+}(LineType));
 var Polyline = (function () {
     function Polyline() {
         this.nodes = [];
@@ -657,9 +586,7 @@ var Polyline = (function () {
         var i = 0;
         while (i < REFLECT_LIMIT) {
             var prevClip = clips[clips.length - 1];
-            var n0 = new XY(prevClip.intersection.nodes[0].x, prevClip.intersection.nodes[0].y);
-            var n1 = new XY(prevClip.intersection.nodes[1].x, prevClip.intersection.nodes[1].y);
-            var reflection = new Matrix().reflection(n1.subtract(n0), n0);
+            var reflection = prevClip.intersection.reflectionMatrix();
             var newRay = new Ray(prevClip.edge.nodes[1], prevClip.edge.nodes[0].transform(reflection).subtract(prevClip.edge.nodes[1]));
             var newClips = newRay.clipWithEdgesDetails(intersectable);
             if (target !== undefined &&
@@ -679,11 +606,191 @@ var Polyline = (function () {
     };
     return Polyline;
 }());
-var Rect = (function () {
-    function Rect(x, y, width, height) {
-        this.origin = { 'x': x, 'y': y };
-        this.size = { 'width': width, 'height': height };
+var PolygonType = (function () {
+    function PolygonType() {
     }
+    PolygonType.prototype.coincident = function (point, inside, onEdge, epsilon) {
+        if (inside == undefined) {
+            inside = true;
+        }
+        if (onEdge == undefined) {
+            onEdge = true;
+        }
+        if (epsilon == undefined) {
+            epsilon = 0;
+        }
+        var useEdges = this.hasOwnProperty('edges');
+        var array = undefined;
+        if (useEdges) {
+            array = this['edges'];
+        }
+        else {
+            array = this.vertices();
+        }
+        if (array.length == 0) {
+            return false;
+        }
+        var ray = undefined;
+        var isInside = inside;
+        for (var i = 0; i < array.length; i++) {
+            var edge = useEdges ? array[i] : new Edge(array[i], array[i % array.length]);
+            if (edge.collinear(point, epsilon)) {
+                return onEdge;
+            }
+            if (!inside) {
+                continue;
+            }
+            if (i == 0) {
+                ray = new Ray(point, edge.midpoint().subtract(point));
+            }
+            else {
+                var intersection = ray.intersection(edge);
+                if (intersection !== undefined && !intersection.equivalent(edge.nodes[1], epsilon)) {
+                    isInside = !isInside;
+                }
+            }
+        }
+        return isInside;
+    };
+    PolygonType.prototype.contains = function (point, epsilon) { return this.coincident(point, true, false, epsilon); };
+    PolygonType.prototype.liesOnEdge = function (point, epsilon) { if (epsilon === undefined) {
+        epsilon = EPSILON_HIGH;
+    } return this.coincident(point, false, true, epsilon); };
+    PolygonType.prototype.signedArea = function (vertices) {
+        if (vertices === undefined) {
+            vertices = this.vertices();
+        }
+        return 0.5 * vertices.map(function (el, i) {
+            var nextEl = vertices[(i + 1) % vertices.length];
+            return el.cross(nextEl);
+        }, this)
+            .reduce(function (prev, cur) { return prev + cur; }, 0);
+    };
+    PolygonType.prototype.centroid = function (vertices) {
+        if (vertices === undefined) {
+            vertices = this.vertices();
+        }
+        return vertices.map(function (el, i) {
+            var nextEl = vertices[(i + 1) % vertices.length];
+            var mag = el.cross(nextEl);
+            return el.add(nextEl).scale(mag);
+        }, this)
+            .reduce(function (prev, current) { return prev.add(current); }, new XY())
+            .scale(1 / (6 * this.signedArea(vertices)));
+    };
+    PolygonType.prototype.center = function (vertices) {
+        if (vertices === undefined) {
+            vertices = this.vertices();
+        }
+        var xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+        for (var i = 0; i < vertices.length; i++) {
+            if (vertices[i].x > xMax) {
+                xMax = vertices[i].x;
+            }
+            if (vertices[i].x < xMin) {
+                xMin = vertices[i].x;
+            }
+            if (vertices[i].y > yMax) {
+                yMax = vertices[i].y;
+            }
+            if (vertices[i].y < yMin) {
+                yMin = vertices[i].y;
+            }
+        }
+        return new XY((xMax - xMin) * 0.5, (yMax - yMin) * 0.5);
+    };
+    PolygonType.prototype.equivalent = function (polygon, epsilon) {
+        var vertices1 = this.vertices();
+        var vertices2 = polygon.vertices();
+        if (vertices2.length != vertices1.length) {
+            return false;
+        }
+        var i0s = [];
+        vertices2.forEach(function (v, i) { if (v.equivalent(vertices1[0], epsilon)) {
+            i0s.push(i);
+        } }, this);
+        if (i0s.length == 0) {
+            return false;
+        }
+        do {
+            var i0 = i0s.shift();
+            var equivalent = true;
+            for (var i = 1; i < vertices1.length; ++i) {
+                var iMod = (i0 + i) % vertices1.length;
+                if (vertices1[i].equivalent(vertices2[iMod], epsilon)) {
+                    equivalent = false;
+                    break;
+                }
+            }
+            if (!equivalent) {
+                equivalent = true;
+                for (i = vertices1.length - 1; i > 0; --i) {
+                    iMod = (i0 + i) % vertices1.length;
+                    if (vertices1[i].equivalent(vertices2[iMod], epsilon)) {
+                        equivalent = false;
+                        break;
+                    }
+                }
+            }
+            if (equivalent) {
+                return true;
+            }
+        } while (i0s.length);
+        return false;
+    };
+    PolygonType.prototype.degenerate = function (epsilon) { return epsilonEqual(this.signedArea(), 0, epsilon); };
+    PolygonType.prototype.transform = function (matrix) {
+        var p = new Polygon();
+        p.nodes = this.vertices().map(function (v) {
+            return v.transform(matrix);
+        }, this);
+        return p;
+    };
+    PolygonType.prototype.convex = function () {
+        return undefined;
+    };
+    PolygonType.prototype.minimumRect = function () {
+        var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        this.vertices().forEach(function (el) {
+            if (el.x > maxX) {
+                maxX = el.x;
+            }
+            if (el.x < minX) {
+                minX = el.x;
+            }
+            if (el.y > maxY) {
+                maxY = el.y;
+            }
+            if (el.y < minY) {
+                minY = el.y;
+            }
+        });
+        return new Rect(minX, minY, maxX - minX, maxY - minY);
+    };
+    PolygonType.prototype.copy = function () {
+        var p = new Polygon();
+        p.nodes = this.vertices().map(function (v) {
+            return v.copy();
+        }, this);
+        return p;
+    };
+    return PolygonType;
+}());
+var Rect = (function (_super) {
+    __extends(Rect, _super);
+    function Rect(a, b, c, d) {
+        var _this = _super.call(this) || this;
+        if (isValidPoint(a)) {
+            _this.origin = new XY(a);
+            _this.size = { 'width': b, 'height': c };
+        }
+        else {
+            _this.origin = new XY(a, b);
+            _this.size = { 'width': c, 'height': d };
+        }
+        return _this;
+    }
+    Rect.prototype.vertices = function () { return [this.origin.copy(), new XY(this.origin.x + this.size.width, this.origin.y), new XY(this.origin.x + this.size.width, this.origin.y + this.size.height), new XY(this.origin.x, this.origin.y + this.size.height)]; };
     Rect.prototype.contains = function (point, epsilon) {
         if (epsilon == undefined) {
             epsilon = 0;
@@ -693,29 +800,34 @@ var Rect = (function () {
             point.x < this.origin.x + this.size.width + epsilon &&
             point.y < this.origin.y + this.size.height + epsilon;
     };
+    Rect.prototype.square = function () { return epsilonEqual(this.size.width, this.size.height); };
     return Rect;
-}());
-var Triangle = (function () {
+}(PolygonType));
+var Triangle = (function (_super) {
+    __extends(Triangle, _super);
     function Triangle(points, circumcenter) {
-        this.points = points;
-        this.edges = this.points.map(function (el, i) {
+        var _this = _super.call(this) || this;
+        _this.points = points;
+        _this.edges = _this.points.map(function (el, i) {
             var nextEl = this.points[(i + 1) % this.points.length];
             return new Edge(el, nextEl);
-        }, this);
-        this.sectors = this.points.map(function (el, i) {
+        }, _this);
+        _this.sectors = _this.points.map(function (el, i) {
             var prevI = (i + this.points.length - 1) % this.points.length;
             var nextI = (i + 1) % this.points.length;
             return new Sector(el, [this.points[prevI], this.points[nextI]]);
-        }, this);
-        this.circumcenter = circumcenter;
+        }, _this);
+        _this.circumcenter = circumcenter;
         if (circumcenter === undefined) {
         }
+        return _this;
     }
+    Triangle.prototype.vertices = function () { return this.points.map(function (el) { return el.copy(); }); };
     Triangle.prototype.angles = function () {
         return this.points.map(function (p, i) {
             var prevP = this.points[(i + this.points.length - 1) % this.points.length];
             var nextP = this.points[(i + 1) % this.points.length];
-            return clockwiseInteriorAngle(nextP.subtract(p), prevP.subtract(p));
+            return nextP.subtract(p).clockwiseInteriorAngle(prevP.subtract(p));
         }, this);
     };
     Triangle.prototype.isAcute = function () {
@@ -749,63 +861,60 @@ var Triangle = (function () {
         for (var i = 0; i < this.points.length; i++) {
             var p0 = this.points[i];
             var p1 = this.points[(i + 1) % this.points.length];
-            var cross = (p.y - p0.y) * (p1.x - p0.x) -
-                (p.x - p0.x) * (p1.y - p0.y);
+            var cross = p1.subtract(p0).cross(p.subtract(p0));
             if (cross < 0)
                 return false;
         }
         return true;
     };
     return Triangle;
-}());
+}(PolygonType));
 var Circle = (function () {
     function Circle(a, b, c) {
-        if (c !== undefined) {
+        if (isValidNumber(c)) {
             this.center = new XY(a, b);
-            this.radius = c;
+            this.radius = Math.abs(c);
         }
         else {
-            this.center = a;
-            this.radius = b;
+            this.center = new XY(a);
+            this.radius = Math.abs(b);
         }
     }
     Circle.prototype.intersection = function (line) {
-        if (line instanceof Line) {
-            return intersectionCircleLine(this.center, this.radius, line.point, line.point.add(line.direction));
+        var p0 = line.pointOnLine();
+        var p1 = p0.add(line.vector());
+        var r_squared = Math.pow(this.radius, 2);
+        var v1 = p0.subtract(this.center);
+        var v2 = p1.subtract(this.center);
+        var dv = v2.subtract(v1);
+        var dr_squared = dv.dot(dv);
+        var D = v1.cross(v2);
+        function sgn(x) { if (x < 0) {
+            return -1;
+        } return 1; }
+        var x1 = (D * dv.y + sgn(dv.y) * dv.x * Math.sqrt(r_squared * dr_squared - (D * D))) / (dr_squared);
+        var x2 = (D * dv.y - sgn(dv.y) * dv.x * Math.sqrt(r_squared * dr_squared - (D * D))) / (dr_squared);
+        var y1 = (-D * dv.x + Math.abs(dv.y) * Math.sqrt(r_squared * dr_squared - (D * D))) / (dr_squared);
+        var y2 = (-D * dv.x - Math.abs(dv.y) * Math.sqrt(r_squared * dr_squared - (D * D))) / (dr_squared);
+        var intersections = [];
+        if (!isNaN(x1)) {
+            intersections.push(new XY(x1 + this.center.x, y1 + this.center.y));
         }
-        if (line instanceof Edge) {
-            return intersectionCircleLine(this.center, this.radius, line.nodes[0], line.nodes[1]);
+        if (!isNaN(x2)) {
+            intersections.push(new XY(x2 + this.center.x, y2 + this.center.y));
         }
-        if (line instanceof Ray) {
-            return intersectionCircleLine(this.center, this.radius, line.origin, line.origin.add(line.direction));
-        }
+        return intersections;
     };
     return Circle;
 }());
-var Polygon = (function () {
+var Polygon = (function (_super) {
+    __extends(Polygon, _super);
     function Polygon() {
-        this.nodes = [];
+        var _this = _super.call(this) || this;
+        _this.nodes = [];
+        return _this;
     }
-    Polygon.prototype.equivalent = function (polygon) {
-        if (polygon.nodes.length != this.nodes.length) {
-            return false;
-        }
-        var iFace = undefined;
-        polygon.nodes.forEach(function (n, i) { if (n === this.nodes[0]) {
-            iFace = i;
-            return;
-        } }, this);
-        if (iFace == undefined) {
-            return false;
-        }
-        for (var i = 0; i < this.nodes.length; i++) {
-            var iFaceMod = (iFace + i) % this.nodes.length;
-            if (this.nodes[i] !== polygon.nodes[iFaceMod]) {
-                return false;
-            }
-        }
-        return true;
-    };
+    Polygon.prototype.vertices = function () { return this.nodes.map(function (el) { return el.copy(); }); };
     Polygon.prototype.contains = function (point) {
         var isInside = false;
         for (var i = 0, j = this.nodes.length - 1; i < this.nodes.length; j = i++) {
@@ -816,46 +925,14 @@ var Polygon = (function () {
         }
         return isInside;
     };
-    Polygon.prototype.signedArea = function () {
-        return 0.5 * this.nodes.map(function (el, i) {
-            var nextEl = this.nodes[(i + 1) % this.nodes.length];
-            return el.x * nextEl.y - nextEl.x * el.y;
-        }, this)
-            .reduce(function (prev, cur) { return prev + cur; }, 0);
-    };
-    Polygon.prototype.centroid = function () {
-        return this.nodes.map(function (el, i) {
-            var nextEl = this.nodes[(i + 1) % this.nodes.length];
-            var mag = el.x * nextEl.y - nextEl.x * el.y;
-            return new XY((el.x + nextEl.x) * mag, (el.y + nextEl.y) * mag);
-        }, this)
-            .reduce(function (prev, current) { return prev.add(current); }, new XY(0, 0))
-            .scale(1 / (6 * this.signedArea()));
-    };
-    Polygon.prototype.center = function () {
-        var xMin = Infinity, xMax = 0, yMin = Infinity, yMax = 0;
-        for (var i = 0; i < this.nodes.length; i++) {
-            if (this.nodes[i].x > xMax) {
-                xMax = this.nodes[i].x;
-            }
-            if (this.nodes[i].x < xMin) {
-                xMin = this.nodes[i].x;
-            }
-            if (this.nodes[i].y > yMax) {
-                yMax = this.nodes[i].y;
-            }
-            if (this.nodes[i].y < yMin) {
-                yMin = this.nodes[i].y;
-            }
-        }
-        return new XY(xMin + (xMax - xMin) * 0.5, yMin + (yMax - yMin) * 0.5);
-    };
-    Polygon.prototype.transform = function (matrix) { this.nodes.forEach(function (node) { node.transform(matrix); }, this); };
     return Polygon;
-}());
-var ConvexPolygon = (function () {
+}(PolygonType));
+var ConvexPolygon = (function (_super) {
+    __extends(ConvexPolygon, _super);
     function ConvexPolygon() {
-        this.edges = [];
+        var _this = _super.call(this) || this;
+        _this.edges = [];
+        return _this;
     }
     ConvexPolygon.prototype.nodes = function () {
         return this.edges.map(function (el, i) {
@@ -866,123 +943,90 @@ var ConvexPolygon = (function () {
             return el.nodes[0];
         }, this);
     };
-    ConvexPolygon.prototype.signedArea = function (nodes) {
-        if (nodes === undefined) {
-            nodes = this.nodes();
-        }
-        return 0.5 * nodes.map(function (el, i) {
-            var nextEl = nodes[(i + 1) % nodes.length];
-            return el.x * nextEl.y - nextEl.x * el.y;
-        }, this)
-            .reduce(function (prev, cur) {
-            return prev + cur;
-        }, 0);
-    };
-    ConvexPolygon.prototype.centroid = function () {
-        var nodes = this.nodes();
-        return nodes.map(function (el, i) {
-            var nextEl = nodes[(i + 1) % nodes.length];
-            var mag = el.x * nextEl.y - nextEl.x * el.y;
-            return new XY((el.x + nextEl.x) * mag, (el.y + nextEl.y) * mag);
-        }, this)
-            .reduce(function (prev, current) {
-            return prev.add(current);
-        }, new XY(0, 0))
-            .scale(1 / (6 * this.signedArea(nodes)));
-    };
-    ConvexPolygon.prototype.center = function () {
-        var xMin = Infinity, xMax = 0, yMin = Infinity, yMax = 0;
-        var nodes = this.edges.map(function (el) { return el.nodes[0]; });
-        for (var i = 0; i < nodes.length; i++) {
-            if (nodes[i].x > xMax) {
-                xMax = nodes[i].x;
-            }
-            if (nodes[i].x < xMin) {
-                xMin = nodes[i].x;
-            }
-            if (nodes[i].y > yMax) {
-                yMax = nodes[i].y;
-            }
-            if (nodes[i].y < yMin) {
-                yMin = nodes[i].y;
-            }
-        }
-        return new XY(xMin + (xMax - xMin) * 0.5, yMin + (yMax - yMin) * 0.5);
-    };
+    ConvexPolygon.prototype.vertices = function () { return this.nodes(); };
     ConvexPolygon.prototype.contains = function (p) {
-        var found = true;
         for (var i = 0; i < this.edges.length; i++) {
             var a = this.edges[i].nodes[1].subtract(this.edges[i].nodes[0]);
-            var b = new XY(p.x - this.edges[i].nodes[0].x, p.y - this.edges[i].nodes[0].y);
+            var b = p.subtract(this.edges[i].nodes[0]);
             if (a.cross(b) < 0) {
                 return false;
             }
         }
         return true;
     };
-    ConvexPolygon.prototype.liesOnEdge = function (p) {
-        for (var i = 0; i < this.edges.length; i++) {
-            if (this.edges[i].collinear(p)) {
-                return true;
-            }
-        }
-        return false;
-    };
     ConvexPolygon.prototype.clipEdge = function (edge) {
         var intersections = this.edges
-            .map(function (el) { return intersectionEdgeEdge(edge, el); })
-            .filter(function (el) { return el !== undefined; })
-            .filter(function (el) {
-            return !el.equivalent(edge.nodes[0]) &&
-                !el.equivalent(edge.nodes[1]);
+            .map(function (el) { return edge.intersection(el); });
+        intersections = intersections.filter(function (el, i) {
+            if (el === undefined) {
+                return false;
+            }
+            for (var j = 0; j < i; ++j) {
+                if (intersections[j] !== undefined && el.equivalent(intersections[j])) {
+                    return false;
+                }
+            }
+            return true;
         });
         switch (intersections.length) {
             case 0:
-                if (this.contains(edge.nodes[0])) {
+                if (this.coincident(edge.nodes[0], true, false)) {
                     return edge;
                 }
                 return undefined;
             case 1:
-                if (this.contains(edge.nodes[0])) {
+                if (this.coincident(edge.nodes[0], true, false)) {
                     return new Edge(edge.nodes[0], intersections[0]);
                 }
-                return new Edge(edge.nodes[1], intersections[0]);
-            default:
-                for (var i = 1; i < intersections.length; i++) {
-                    if (!intersections[0].equivalent(intersections[i])) {
-                        return new Edge(intersections[0], intersections[i]);
-                    }
+                if (this.coincident(edge.nodes[1], true, false)) {
+                    return new Edge(edge.nodes[1], intersections[0]);
                 }
+                return new Edge(intersections[0], intersections[0]);
+            case 2: return new Edge(intersections[0], intersections[1]);
         }
     };
     ConvexPolygon.prototype.clipLine = function (line) {
         var intersections = this.edges
-            .map(function (el) { return intersectionLineEdge(line, el); })
-            .filter(function (el) { return el !== undefined; });
+            .map(function (el) { return line.intersection(el); });
+        intersections = intersections.filter(function (el, i) {
+            if (el === undefined) {
+                return false;
+            }
+            for (var j = 0; j < i; ++j) {
+                if (intersections[j] !== undefined && el.equivalent(intersections[j])) {
+                    return false;
+                }
+            }
+            return true;
+        });
         switch (intersections.length) {
             case 0: return undefined;
             case 1: return new Edge(intersections[0], intersections[0]);
-            default:
-                for (var i = 1; i < intersections.length; i++) {
-                    if (!intersections[0].equivalent(intersections[i])) {
-                        return new Edge(intersections[0], intersections[i]);
-                    }
-                }
+            case 2: return new Edge(intersections[0], intersections[1]);
         }
     };
     ConvexPolygon.prototype.clipRay = function (ray) {
         var intersections = this.edges
-            .map(function (el) { return intersectionRayEdge(ray, el); })
-            .filter(function (el) { return el !== undefined; });
+            .map(function (el) { return ray.intersection(el); });
+        intersections = intersections.filter(function (el, i) {
+            if (el === undefined) {
+                return false;
+            }
+            for (var j = 0; j < i; ++j) {
+                if (intersections[j] !== undefined && el.equivalent(intersections[j])) {
+                    return false;
+                }
+            }
+            return true;
+        });
         switch (intersections.length) {
             case 0: return undefined;
-            case 1: return new Edge(ray.origin, intersections[0]);
-            default:
-                for (var i = 1; i < intersections.length; i++) {
-                    if (!intersections[0].equivalent(intersections[i])) {
-                        return new Edge(intersections[0], intersections[i]);
-                    }
+            case 1:
+                if (this.coincident(ray.origin, true, false)) {
+                    return new Edge(ray.origin, intersections[0]);
                 }
+                return new Edge(intersections[0], intersections[0]);
+            case 2: return new Edge(intersections[0], intersections[1]);
         }
     };
     ConvexPolygon.prototype.setEdgesFromPoints = function (points) {
@@ -992,14 +1036,20 @@ var ConvexPolygon = (function () {
         }, this);
         return this;
     };
-    ConvexPolygon.prototype.regularPolygon = function (sides) {
+    ConvexPolygon.prototype.regularPolygon = function (sides, scale, origin) {
+        if (scale === undefined) {
+            scale = 1;
+        }
+        if (origin === undefined) {
+            origin = XY.origin;
+        }
         var halfwedge = 2 * Math.PI / sides * 0.5;
-        var radius = Math.cos(halfwedge);
+        var radius = Math.cos(halfwedge) * scale;
         var points = [];
         for (var i = 0; i < sides; i++) {
             var a = -2 * Math.PI * i / sides + halfwedge;
-            var x = cleanNumber(radius * Math.sin(a), 14);
-            var y = cleanNumber(radius * Math.cos(a), 14);
+            var x = origin.x + cleanNumber(radius * Math.sin(a), 14);
+            var y = origin.y + cleanNumber(radius * Math.cos(a), 14);
             points.push(new XY(x, y));
         }
         this.setEdgesFromPoints(points);
@@ -1057,24 +1107,6 @@ var ConvexPolygon = (function () {
         this.edges = [];
         return undefined;
     };
-    ConvexPolygon.prototype.minimumRect = function () {
-        var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-        this.nodes().forEach(function (el) {
-            if (el.x > maxX) {
-                maxX = el.x;
-            }
-            if (el.x < minX) {
-                minX = el.x;
-            }
-            if (el.y > maxY) {
-                maxY = el.y;
-            }
-            if (el.y < minY) {
-                minY = el.y;
-            }
-        });
-        return new Rect(minX, minY, maxX - minX, maxY - minY);
-    };
     ConvexPolygon.prototype.copy = function () {
         var p = new ConvexPolygon();
         p.edges = this.edges.map(function (e) {
@@ -1083,7 +1115,7 @@ var ConvexPolygon = (function () {
         return p;
     };
     return ConvexPolygon;
-}());
+}(PolygonType));
 var Sector = (function () {
     function Sector(origin, endpoints) {
         this.origin = origin;
@@ -1091,29 +1123,20 @@ var Sector = (function () {
     }
     Sector.prototype.vectors = function () {
         return this.endPoints.map(function (el) {
-            return new XY(el.x - this.origin.x, el.y - this.origin.y);
+            return el.subtract(this.origin);
         }, this);
     };
     Sector.prototype.angle = function () {
         var vectors = this.vectors();
-        return counterClockwiseInteriorAngle(vectors[0], vectors[1]);
+        return vectors[0].counterClockwiseInteriorAngle(vectors[1]);
     };
     Sector.prototype.bisect = function () {
         var vectors = this.vectors();
-        var angles = vectors.map(function (el) { return Math.atan2(el.y, el.x); });
-        while (angles[0] < 0) {
-            angles[0] += Math.PI * 2;
-        }
-        while (angles[1] < 0) {
-            angles[1] += Math.PI * 2;
-        }
-        var interior = counterClockwiseInteriorAngleRadians(angles[0], angles[1]);
-        var bisected = angles[0] + interior * 0.5;
-        return new Ray(new XY(this.origin.x, this.origin.y), new XY(Math.cos(bisected), Math.sin(bisected)));
+        return new Ray(this.origin, vectors[1].bisect(vectors[0])[0]);
     };
     Sector.prototype.subsect = function (divisions) {
         if (divisions == undefined || divisions < 2) {
-            throw "subset() requires number parameter > 1";
+            throw "subsect() requires number parameter > 1";
         }
         var angles = this.vectors().map(function (el) { return Math.atan2(el.y, el.x); });
         while (angles[0] < 0) {
@@ -1126,7 +1149,7 @@ var Sector = (function () {
         var rays = [];
         for (var i = 1; i < divisions; i++) {
             var angle = angles[0] + interior * (i / divisions);
-            rays.push(new Ray(new XY(this.origin.x, this.origin.y), new XY(Math.cos(angle), Math.sin(angle))));
+            rays.push(new Ray(this.origin, new XY(Math.cos(angle), Math.sin(angle))));
         }
         return rays;
     };
@@ -1136,10 +1159,8 @@ var Sector = (function () {
             a.endPoints[1].equivalent(this.endPoints[1]);
     };
     Sector.prototype.contains = function (point) {
-        var cross0 = (point.y - this.endPoints[0].y) * (this.origin.x - this.endPoints[0].x) -
-            (point.x - this.endPoints[0].x) * (this.origin.y - this.endPoints[0].y);
-        var cross1 = (point.y - this.origin.y) * (this.endPoints[1].x - this.origin.x) -
-            (point.x - this.origin.x) * (this.endPoints[1].y - this.origin.y);
+        var cross0 = this.origin.subtract(this.endPoints[0]).cross(point.subtract(this.endPoints[0]));
+        var cross1 = this.endPoints[1].subtract(this.origin).cross(point.subtract(this.origin));
         return cross0 < 0 && cross1 < 0;
     };
     Sector.prototype.sortByClockwise = function () { };
@@ -1152,6 +1173,25 @@ var IsoscelesTriangle = (function (_super) {
     }
     return IsoscelesTriangle;
 }(Triangle));
+var Orthographic = (function () {
+    function Orthographic(vector) {
+        this.vector = vector === undefined ? XY.K : vector;
+    }
+    Orthographic.prototype.project = function (point) {
+        return point.subtract(this.vector.scale(point.z / this.vector.z));
+    };
+    return Orthographic;
+}());
+var Perspective = (function () {
+    function Perspective(source) {
+        this.source = source;
+    }
+    Perspective.prototype.project = function (point) {
+        var vector = point.subtract(this.source);
+        return point.subtract(vector.scale(point.z / vector.z));
+    };
+    return Perspective;
+}());
 var VoronoiMolecule = (function (_super) {
     __extends(VoronoiMolecule, _super);
     function VoronoiMolecule(points, circumcenter, edgeNormal) {
@@ -1173,8 +1213,7 @@ var VoronoiMolecule = (function (_super) {
             case 2:
                 _this.isEdge = true;
                 _this.units = _this.units.filter(function (el) {
-                    var cross = (el.vertex.y - el.base[0].y) * (el.base[1].x - el.base[0].x) -
-                        (el.vertex.x - el.base[0].x) * (el.base[1].y - el.base[0].y);
+                    var cross = el.base[1].subtract(el.base[0]).cross(el.vertex.subtract(el.base[0]));
                     if (cross < 0) {
                         return false;
                     }
@@ -1185,8 +1224,7 @@ var VoronoiMolecule = (function (_super) {
         }
         var eclipsed = undefined;
         _this.units = _this.units.filter(function (el) {
-            var cross = (el.vertex.y - el.base[0].y) * (el.base[1].x - el.base[0].x) -
-                (el.vertex.x - el.base[0].x) * (el.base[1].y - el.base[0].y);
+            var cross = el.base[1].subtract(el.base[0]).cross(el.vertex.subtract(el.base[0]));
             if (cross < 0) {
                 eclipsed = el;
                 return false;
@@ -1194,7 +1232,7 @@ var VoronoiMolecule = (function (_super) {
             return true;
         }, _this);
         if (eclipsed !== undefined) {
-            var angle = clockwiseInteriorAngle(eclipsed.vertex.subtract(eclipsed.base[1]), eclipsed.base[0].subtract(eclipsed.base[1]));
+            var angle = eclipsed.vertex.subtract(eclipsed.base[1]).clockwiseInteriorAngle(eclipsed.base[0].subtract(eclipsed.base[1]));
             _this.units.forEach(function (el) { el.crimpAngle -= angle; });
         }
         return _this;
@@ -1245,8 +1283,8 @@ var VoronoiMoleculeTriangle = (function () {
         if (this.crimpAngle === undefined) {
             var vec1 = base[1].subtract(base[0]);
             var vec2 = vertex.subtract(base[0]);
-            var a1 = clockwiseInteriorAngle(vec1, vec2);
-            var a2 = clockwiseInteriorAngle(vec2, vec1);
+            var a1 = vec1.clockwiseInteriorAngle(vec2);
+            var a2 = vec2.clockwiseInteriorAngle(vec1);
             this.crimpAngle = (a1 < a2) ? a1 : a2;
         }
     }
@@ -1255,8 +1293,8 @@ var VoronoiMoleculeTriangle = (function () {
         var crimpVector = new XY(Math.cos(baseAngle + this.crimpAngle), Math.sin(baseAngle + this.crimpAngle));
         var bisectVector = new XY(Math.cos(baseAngle + this.crimpAngle * 0.5), Math.sin(baseAngle + this.crimpAngle * 0.5));
         var symmetryLine = new Edge(this.vertex, this.base[0].midpoint(this.base[1]));
-        var crimpPos = intersectionRayEdge(new Ray(this.base[0], crimpVector), symmetryLine);
-        var bisectPos = intersectionRayEdge(new Ray(this.base[0], bisectVector), symmetryLine);
+        var crimpPos = new Ray(this.base[0], crimpVector).intersection(symmetryLine);
+        var bisectPos = new Ray(this.base[0], bisectVector).intersection(symmetryLine);
         return [crimpPos, bisectPos];
     };
     VoronoiMoleculeTriangle.prototype.generateCrimpCreaseLines = function () {
@@ -1284,8 +1322,7 @@ var VoronoiMoleculeTriangle = (function () {
         for (var i = 0; i < points.length; i++) {
             var p0 = points[i];
             var p1 = points[(i + 1) % points.length];
-            var cross = (p.y - p0.y) * (p1.x - p0.x) -
-                (p.x - p0.x) * (p1.y - p0.y);
+            var cross = p1.subtract(p0).cross(p.subtract(p0));
             if (cross < 0)
                 return false;
         }
@@ -1982,7 +2019,6 @@ var PlanarNode = (function (_super) {
         _this.cache = {};
         return _this;
     }
-    PlanarNode.prototype.copy = function () { return new XY(this.x, this.y); };
     PlanarNode.prototype.junction = function () {
         if (this.graph.unclean) {
             this.graph.clean();
@@ -2019,43 +2055,35 @@ var PlanarNode = (function (_super) {
             .sort(function (a, b) { return a.angle - b.angle; })
             .map(function (el) { return el.edge; });
     };
-    PlanarNode.prototype.setPosition = function (x, y) { this.x = x; this.y = y; return this; };
-    PlanarNode.prototype.transform = function (matrix) {
-        var t = new XY(this.x * matrix.a + this.y * matrix.c + matrix.tx, this.x * matrix.b + this.y * matrix.d + matrix.ty);
-        this.x = t.x;
-        this.y = t.y;
-        return this;
-    };
-    PlanarNode.prototype.translate = function (dx, dy) { this.x += dx; this.y += dy; return this; };
-    PlanarNode.prototype.rotate = function (angle, origin) { return this.transform(new Matrix().rotation(angle, origin)); };
-    PlanarNode.prototype.reflect = function (line) {
-        var origin = (line.direction != undefined) ? (line.point || line.origin) : new XY(line.nodes[0].x, line.nodes[0].y);
-        var vector = (line.direction != undefined) ? line.direction : new XY(line.nodes[1].x, line.nodes[1].y).subtract(origin);
-        return this.transform(new Matrix().reflection(vector, origin));
-    };
-    PlanarNode.prototype.equivalent = function (point, epsilon) { return new XY(this.x, this.y).equivalent(point, epsilon); };
-    PlanarNode.prototype.normalize = function () { var m = this.magnitude(); return new XY(this.x / m, this.y / m); };
-    PlanarNode.prototype.dot = function (point) { return this.x * point.x + this.y * point.y; };
-    PlanarNode.prototype.cross = function (vector) { return this.x * vector.y - this.y * vector.x; };
-    PlanarNode.prototype.magnitude = function () { return Math.sqrt(this.x * this.x + this.y * this.y); };
-    PlanarNode.prototype.distanceTo = function (a) { return Math.sqrt(Math.pow(this.x - a.x, 2) + Math.pow(this.y - a.y, 2)); };
-    PlanarNode.prototype.rotate90 = function () { return new XY(-this.y, this.x); };
-    PlanarNode.prototype.rotate180 = function () { return new XY(-this.x, -this.y); };
-    PlanarNode.prototype.rotate270 = function () { return new XY(this.y, -this.x); };
-    PlanarNode.prototype.lerp = function (point, pct) { var inv = 1.0 - pct; return new XY(this.x * pct + point.x * inv, this.y * pct + point.y * inv); };
-    PlanarNode.prototype.midpoint = function (other) { return new XY((this.x + other.x) * 0.5, (this.y + other.y) * 0.5); };
-    PlanarNode.prototype.scale = function (magnitude) { return new XY(this.x * magnitude, this.y * magnitude); };
-    PlanarNode.prototype.add = function (a, b) { if (isValidPoint(a)) {
-        return new XY(this.x + a.x, this.y + a.y);
-    }
-    else if (isValidNumber(b)) {
-        return new XY(this.x + a, this.y + b);
-    } };
-    PlanarNode.prototype.subtract = function (point) { return new XY(this.x - point.x, this.y - point.y); };
-    PlanarNode.prototype.multiply = function (m) { return new XY(this.x * m.x, this.y * m.y); };
-    PlanarNode.prototype.abs = function () { return new XY(Math.abs(this.x), Math.abs(this.y)); };
-    PlanarNode.prototype.commonX = function (point, epsilon) { return epsilonEqual(this.x, point.x, epsilon); };
-    PlanarNode.prototype.commonY = function (point, epsilon) { return epsilonEqual(this.y, point.y, epsilon); };
+    PlanarNode.prototype.setPosition = function (a, b) { var p = new XY(a, b); this.x = p.x; this.y = p.y; this.z = p.z; return this; };
+    PlanarNode.prototype.transform = function (matrix) { var p = new XY(this).transform(matrix); return this.setPosition(p); };
+    PlanarNode.prototype.translate = function (dx, dy) { var p = new XY(this).translate(dx, dy); return this.setPosition(p); };
+    PlanarNode.prototype.rotate90 = function () { var p = new XY(this).rotate90(); return this.setPosition(p); };
+    PlanarNode.prototype.rotate180 = function () { var p = new XY(this).rotate180(); return this.setPosition(p); };
+    PlanarNode.prototype.rotate270 = function () { var p = new XY(this).rotate270(); return this.setPosition(p); };
+    PlanarNode.prototype.rotate = function (angle) { var p = new XY(this).rotate(angle); return this.setPosition(p); };
+    PlanarNode.prototype.reflect = function (line) { var p = new XY(this).reflect(line); return this.setPosition(p); };
+    PlanarNode.prototype.project = function (projection) { var p = new XY(this).project(projection); return this.setPosition(p); };
+    PlanarNode.prototype.equivalent = function (point, epsilon) { return new XY(this).equivalent(point, epsilon); };
+    PlanarNode.prototype.normalize = function () { return new XY(this).normalize(); };
+    PlanarNode.prototype.dot = function (vector) { return new XY(this).dot(vector); };
+    PlanarNode.prototype.cross = function (vector) { return new XY(this).cross(vector); };
+    PlanarNode.prototype.clockwiseInteriorAngle = function (vector) { return new XY(this).clockwiseInteriorAngle(vector); };
+    PlanarNode.prototype.counterClockwiseInteriorAngle = function (vector) { return new XY(this).counterClockwiseInteriorAngle(vector); };
+    PlanarNode.prototype.magnitude = function () { return new XY(this).magnitude(); };
+    PlanarNode.prototype.distanceTo = function (point) { return new XY(this).distanceTo(point); };
+    PlanarNode.prototype.bisect = function (vector) { return new XY(this).bisect(vector); };
+    PlanarNode.prototype.lerp = function (point, pct) { return new XY(this).lerp(point, pct); };
+    PlanarNode.prototype.midpoint = function (other) { return new XY(this).midpoint(other); };
+    PlanarNode.prototype.scale = function (magnitude) { return new XY(this).scale(magnitude); };
+    PlanarNode.prototype.invert = function () { return new XY(this).invert(); };
+    PlanarNode.prototype.add = function (a, b) { return new XY(this).add(a, b); };
+    PlanarNode.prototype.subtract = function (point) { return new XY(this).subtract(point); };
+    PlanarNode.prototype.multiply = function (m) { return new XY(this).multiply(m); };
+    PlanarNode.prototype.abs = function () { return new XY(this).abs(); };
+    PlanarNode.prototype.commonX = function (point, epsilon) { return new XY(this).commonX(point, epsilon); };
+    PlanarNode.prototype.commonY = function (point, epsilon) { return new XY(this).commonY(point, epsilon); };
+    PlanarNode.prototype.copy = function () { return new XY(this); };
     return PlanarNode;
 }(GraphNode));
 var PlanarEdge = (function (_super) {
@@ -2065,7 +2093,6 @@ var PlanarEdge = (function (_super) {
         _this.cache = {};
         return _this;
     }
-    PlanarEdge.prototype.copy = function () { return new Edge(this.nodes[0].copy(), this.nodes[1].copy()); };
     PlanarEdge.prototype.adjacentFaces = function () {
         if (this.graph.unclean) {
             this.graph.clean();
@@ -2083,37 +2110,34 @@ var PlanarEdge = (function (_super) {
         var eps2 = epsilon * 2;
         return new Rect(xs[0] - epsilon, ys[0] - epsilon, xs[1] - xs[0] + eps2, ys[1] - ys[0] + eps2);
     };
-    PlanarEdge.prototype.intersection = function (edge, epsilon) {
-        if (typeof edge.isAdjacentToEdge === "function" && this.isAdjacentToEdge(edge)) {
+    PlanarEdge.prototype.intersection = function (line, epsilon) {
+        if (typeof line.isAdjacentToEdge === "function" && this.isAdjacentToEdge(line)) {
             return undefined;
         }
-        var intersect = this.copy().intersection(edge.copy(), epsilon);
+        var intersect = new Edge(this).intersection(line.copy(), epsilon);
         if (intersect != undefined &&
             !(intersect.equivalent(this.nodes[0], epsilon) || intersect.equivalent(this.nodes[1], epsilon))) {
             return intersect;
         }
     };
-    PlanarEdge.prototype.transform = function (matrix) { return new Edge(this.nodes[0].transform(matrix), this.nodes[1].transform(matrix)); };
-    PlanarEdge.prototype.parallel = function (edge, epsilon) { return new Edge(this).parallel(new Edge(edge), epsilon); };
+    PlanarEdge.prototype.transform = function (matrix) { this.nodes[0].transform(matrix); this.nodes[1].transform(matrix); return this; };
+    PlanarEdge.prototype.compFunction = function (t, epsilon) { return new Edge(this).compFunction(t, epsilon); };
+    PlanarEdge.prototype.perpendicular = function (line, epsilon) { return new Edge(this).perpendicular(line.copy(), epsilon); };
+    PlanarEdge.prototype.parallel = function (line, epsilon) { return new Edge(this).parallel(line.copy(), epsilon); };
     PlanarEdge.prototype.collinear = function (point, epsilon) { return new Edge(this).collinear(point, epsilon); };
-    PlanarEdge.prototype.equivalent = function (e, epsilon) { return ((this.nodes[0].equivalent(e.nodes[0], epsilon) && this.nodes[1].equivalent(e.nodes[1], epsilon)) || (this.nodes[0].equivalent(e.nodes[1], epsilon) && this.nodes[1].equivalent(e.nodes[0], epsilon))); };
-    PlanarEdge.prototype.degenrate = function (epsilon) { return this.nodes[0].equivalent(this.nodes[1], epsilon); };
-    PlanarEdge.prototype.length = function () { return Math.sqrt(Math.pow(this.nodes[0].x - this.nodes[1].x, 2) + Math.pow(this.nodes[0].y - this.nodes[1].y, 2)); };
-    PlanarEdge.prototype.vector = function (originNode) { if (originNode == undefined) {
-        return this.nodes[1].subtract(this.nodes[0]);
-    } if (this.nodes[0].equivalent(originNode)) {
-        return this.nodes[1].subtract(this.nodes[0]);
-    } return this.nodes[0].subtract(this.nodes[1]); };
-    PlanarEdge.prototype.reflectionMatrix = function () { return new Matrix().reflection(this.nodes[1].subtract(this.nodes[0]), this.nodes[0]); };
-    PlanarEdge.prototype.nearestPoint = function (point) { var answer = this.nearestPointNormalTo(point); if (answer !== undefined) {
-        return answer;
-    } return this.nodes.map(function (el) { return { point: el, distance: el.distanceTo(point) }; }, this).sort(function (a, b) { return a.distance - b.distance; }).shift().point; };
-    PlanarEdge.prototype.nearestPointNormalTo = function (point) { var p = this.nodes[0].distanceTo(this.nodes[1]); var u = ((point.x - this.nodes[0].x) * (this.nodes[1].x - this.nodes[0].x) + (point.y - this.nodes[0].y) * (this.nodes[1].y - this.nodes[0].y)) / (Math.pow(p, 2)); if (u < 0 || u > 1.0) {
-        return undefined;
-    } return new XY(this.nodes[0].x + u * (this.nodes[1].x - this.nodes[0].x), this.nodes[0].y + u * (this.nodes[1].y - this.nodes[0].y)); };
-    PlanarEdge.prototype.midpoint = function () { return new XY(0.5 * (this.nodes[0].x + this.nodes[1].x), 0.5 * (this.nodes[0].y + this.nodes[1].y)); };
-    PlanarEdge.prototype.perpendicularBisector = function () { return new Line(this.midpoint(), this.vector().rotate90()); };
-    PlanarEdge.prototype.infiniteLine = function () { return new Line(this.nodes[0], this.nodes[1].subtract(this.nodes[0])); };
+    PlanarEdge.prototype.equivalent = function (edge, epsilon) { return new Edge(this).equivalent(edge.copy(), epsilon); };
+    PlanarEdge.prototype.degenrate = function (epsilon) { return new Edge(this).degenrate(epsilon); };
+    PlanarEdge.prototype.length = function () { return new Edge(this).length(); };
+    PlanarEdge.prototype.pointOnLine = function () { return new Edge(this).pointOnLine(); };
+    PlanarEdge.prototype.vector = function (originNode) { return new Edge(this).vector(originNode); };
+    PlanarEdge.prototype.reflectionMatrix = function () { return new Edge(this).reflectionMatrix(); };
+    PlanarEdge.prototype.rotationMatrix = function (angle) { return new Edge(this).rotationMatrix(angle); };
+    PlanarEdge.prototype.nearestPoint = function (a, b) { return new Edge(this).nearestPoint(a, b); };
+    PlanarEdge.prototype.nearestPointNormalTo = function (a, b) { return new Edge(this).nearestPointNormalTo(a, b); };
+    PlanarEdge.prototype.midpoint = function () { return new Edge(this).midpoint(); };
+    PlanarEdge.prototype.copy = function () { return new Edge(this); };
+    PlanarEdge.prototype.perpendicularBisector = function () { return new Edge(this).perpendicularBisector(); };
+    PlanarEdge.prototype.infiniteLine = function () { return new Edge(this).infiniteLine(); };
     return PlanarEdge;
 }(GraphEdge));
 var PlanarFace = (function (_super) {
@@ -2146,7 +2170,7 @@ var PlanarFace = (function (_super) {
         }, this);
     };
     PlanarFace.prototype.edgeAdjacentFaces = function () {
-        var allFaces = this.graph.faces.filter(function (el) { return !this.equivalent(el); }, this);
+        var allFaces = this.graph.faces.filter(function (el) { return !this.isSimilarToFace(el); }, this);
         return this.edges.map(function (ed) {
             for (var i = 0; i < allFaces.length; i++) {
                 var adjArray = allFaces[i].edges.filter(function (ef) { return ed === ef; });
@@ -2157,7 +2181,7 @@ var PlanarFace = (function (_super) {
         }, this).filter(function (el) { return el !== undefined; });
     };
     PlanarFace.prototype.nodeAdjacentFaces = function () {
-        var allFaces = this.graph.faces.filter(function (el) { return !this.equivalent(el); }, this);
+        var allFaces = this.graph.faces.filter(function (el) { return !this.isSimilarToFace(el); }, this);
         return this.nodes.map(function (node) {
             for (var i = 0; i < allFaces.length; i++) {
                 var adjArray = allFaces[i].nodes.filter(function (nf) { return node === nf; });
@@ -2209,6 +2233,45 @@ var PlanarFace = (function (_super) {
         }
         return array[0][0]["tree"];
     };
+    PlanarFace.prototype.isSimilarToFace = function (face) {
+        if (face.nodes.length != this.nodes.length) {
+            return false;
+        }
+        var iFaces = [];
+        var nodes = face.nodes;
+        nodes.forEach(function (n, i) { if (n === this.nodes[0]) {
+            iFaces.push(i);
+        } }, this);
+        if (iFaces.length == 0) {
+            return false;
+        }
+        do {
+            var iFace = iFaces.shift();
+            var similar = true;
+            for (var i = 0; i < this.nodes.length; ++i) {
+                var iFaceMod = (iFace + i) % this.nodes.length;
+                if (this.nodes[i] !== nodes[iFaceMod]) {
+                    similar = false;
+                    break;
+                }
+            }
+            if (!similar) {
+                similar = true;
+                for (var i = this.nodes.length - 1; i >= 0; --i) {
+                    var iFaceMod = (iFace + i) % this.nodes.length;
+                    if (this.nodes[i] !== nodes[iFaceMod]) {
+                        similar = false;
+                        break;
+                    }
+                }
+            }
+            if (similar) {
+                return true;
+            }
+        } while (iFaces.length);
+        return false;
+    };
+    PlanarFace.prototype.transform = function (matrix) { this.nodes.forEach(function (node) { node.transform(matrix); }); return this; };
     return PlanarFace;
 }(Polygon));
 var PlanarSector = (function (_super) {
@@ -2387,7 +2450,7 @@ var PlanarGraph = (function (_super) {
         for (var i = 0; i < faces.length; i++) {
             var found = false;
             for (var j = 0; j < uniqueFaces.length; j++) {
-                if (faces[i].equivalent(uniqueFaces[j])) {
+                if (faces[i].isSimilarToFace(uniqueFaces[j])) {
                     found = true;
                     break;
                 }
@@ -2574,7 +2637,7 @@ var PlanarGraph = (function (_super) {
     };
     PlanarGraph.prototype.faceContainingPoint = function (point) {
         for (var f = 0; f < this.faces.length; f++) {
-            if (this.faces[f].contains(point)) {
+            if (this.faces[f].coincident(point)) {
                 return this.faces[f];
             }
         }
@@ -2945,7 +3008,7 @@ var PlanarGraph = (function (_super) {
             .map(function (el, i) {
             var el1 = face.nodes[(i + 1) % face.nodes.length];
             var el2 = face.nodes[(i + 2) % face.nodes.length];
-            return clockwiseInteriorAngle(new XY(el.x - el1.x, el.y - el1.y), new XY(el2.x - el1.x, el2.y - el1.y));
+            return el.subtract(el1).clockwiseInteriorAngle(el2.subtract(el1));
         }, this)
             .reduce(function (sum, value) { return sum + value; }, 0);
         if (face.nodes.length > 2 && Math.abs(angleSum / (face.nodes.length - 2) - Math.PI) < SUM_ANGLE_EPSILON) {
@@ -3211,18 +3274,7 @@ var CreaseSector = (function (_super) {
         return _super !== null && _super.apply(this, arguments) || this;
     }
     CreaseSector.prototype.bisect = function () {
-        var vectors = this.vectors();
-        var angles = vectors.map(function (el) { return Math.atan2(el.y, el.x); });
-        while (angles[0] < 0) {
-            angles[0] += Math.PI * 2;
-        }
-        while (angles[1] < 0) {
-            angles[1] += Math.PI * 2;
-        }
-        var interior = counterClockwiseInteriorAngleRadians(angles[0], angles[1]);
-        var bisected = angles[0] + interior * 0.5;
-        var ray = new Ray(new XY(this.origin.x, this.origin.y), new XY(Math.cos(bisected), Math.sin(bisected)));
-        return new CPRay(this.origin.graph, ray);
+        return new CPRay(this.origin.graph, new Sector(this.origin, this.endPoints).bisect());
     };
     CreaseSector.prototype.kawasakiCollapse = function () {
         var junction = this.origin.junction();
@@ -3253,7 +3305,7 @@ var CreaseSector = (function (_super) {
         var vec0 = this.edges[0].vector(this.origin);
         var angle0 = Math.atan2(vec0.y, vec0.x);
         var newA = angle0 + dEven;
-        var solution = new Ray(new XY(this.origin.x, this.origin.y), new XY(Math.cos(newA), Math.sin(newA)));
+        var solution = new Ray(this.origin, new XY(Math.cos(newA), Math.sin(newA)));
         if (this.contains(solution.origin.add(solution.direction))) {
             return new CPRay(this.origin.graph, solution);
         }
@@ -3334,7 +3386,7 @@ var CreaseJunction = (function (_super) {
         var vec0 = sector.edges[0].vector(sector.origin);
         var angle0 = Math.atan2(vec0.y, vec0.x);
         var newA = angle0 - dEven;
-        var solution = new Ray(new XY(this.origin.x, this.origin.y), new XY(Math.cos(newA), Math.sin(newA)));
+        var solution = new Ray(this.origin, new XY(Math.cos(newA), Math.sin(newA)));
         if (sector.contains(solution.origin.add(solution.direction))) {
             return new CPRay(this.origin.graph, solution);
         }
@@ -3375,15 +3427,16 @@ var Crease = (function (_super) {
     function Crease(graph, node1, node2) {
         var _this = _super.call(this, graph, node1, node2) || this;
         _this.orientation = CreaseDirection.mark;
+        _this.angle = 0;
         _this.newMadeBy = new MadeBy();
         _this.newMadeBy.endPoints = [node1, node2];
         return _this;
     }
     ;
-    Crease.prototype.mark = function () { this.orientation = CreaseDirection.mark; return this; };
-    Crease.prototype.mountain = function () { this.orientation = CreaseDirection.mountain; return this; };
-    Crease.prototype.valley = function () { this.orientation = CreaseDirection.valley; return this; };
-    Crease.prototype.border = function () { this.orientation = CreaseDirection.border; return this; };
+    Crease.prototype.mark = function () { this.orientation = CreaseDirection.mark; this.angle = 0; return this; };
+    Crease.prototype.mountain = function (angle) { this.orientation = CreaseDirection.mountain; this.angle = isValidNumber(angle) ? angle : 180; return this; };
+    Crease.prototype.valley = function (angle) { this.orientation = CreaseDirection.valley; this.angle = isValidNumber(angle) ? angle : 180; return this; };
+    Crease.prototype.border = function () { this.orientation = CreaseDirection.border; this.angle = 0; return this; };
     Crease.prototype.creaseToEdge = function (edge) { return this.graph.creaseEdgeToEdge(this, edge); };
     return Crease;
 }(PlanarEdge));
@@ -3513,7 +3566,7 @@ var CreasePattern = (function (_super) {
     };
     CreasePattern.prototype.bookSymmetry = function () {
         var center = this.boundary.center();
-        this.symmetryLine = new Line(center, new XY(0, 1));
+        this.symmetryLine = new Line(center, XY.J);
         return this;
     };
     CreasePattern.prototype.diagonalSymmetry = function () {
@@ -3731,7 +3784,7 @@ var CreasePattern = (function (_super) {
             return this.creaseEdge(a.origin, intersection);
         }
         var e = gimme1Edge(a, b, c, d);
-        var point0Ray = new Ray(e.nodes[0], new XY(e.nodes[1].x - e.nodes[0].x, e.nodes[1].y - e.nodes[0].y));
+        var point0Ray = new Ray(e.nodes[0], e.nodes[1].subtract(e.nodes[0]));
         var edgeDetail = point0Ray.clipWithEdgesDetails(this.edges).shift();
         if (edgeDetail == undefined) {
             return;
@@ -3912,7 +3965,7 @@ var CreasePattern = (function (_super) {
                 var edge = this.boundary.clipLine(inputEdge.infiniteLine());
                 if (edge !== undefined) {
                     var cpedge = new CPEdge(this, edge);
-                    cpedge.madeBy = new Fold(this.creaseThroughPoints, [new XY(this.nodes[n0].x, this.nodes[n0].y), new XY(this.nodes[n1].x, this.nodes[n1].y)]);
+                    cpedge.madeBy = new Fold(this.creaseThroughPoints, [this.nodes[n0].copy(), this.nodes[n1].copy()]);
                     edges.push(cpedge);
                 }
             }
@@ -3927,7 +3980,7 @@ var CreasePattern = (function (_super) {
                 var edge = this.boundary.clipLine(inputEdge.perpendicularBisector());
                 if (edge !== undefined) {
                     var cpedge = new CPEdge(this, edge);
-                    cpedge.madeBy = new Fold(this.creasePointToPoint, [new XY(this.nodes[n0].x, this.nodes[n0].y), new XY(this.nodes[n1].x, this.nodes[n1].y)]);
+                    cpedge.madeBy = new Fold(this.creasePointToPoint, [this.nodes[n0].copy(), this.nodes[n1].copy()]);
                     edges.push(cpedge);
                 }
             }
@@ -3957,7 +4010,7 @@ var CreasePattern = (function (_super) {
         var edges = [];
         for (var e = 0; e < this.edges.length; e++) {
             for (var n = 0; n < this.nodes.length; n++) {
-                var point = new XY(this.nodes[n].x, this.nodes[n].y);
+                var point = this.nodes[n].copy();
                 var edge = this.boundary.clipLine(new Line(point, this.edges[e].vector().rotate90()));
                 if (edge != undefined) {
                     var cpedge = new CPEdge(this, edge);
@@ -4066,9 +4119,15 @@ var CreasePattern = (function (_super) {
         this.clean();
         return this;
     };
-    CreasePattern.prototype.fold = function (face) {
+    CreasePattern.prototype.foldedCP = function (face, removeMarks) {
+        if (removeMarks === undefined) {
+            removeMarks = true;
+        }
         this.clean();
-        var copyCP = this.copy().removeAllMarks();
+        var copyCP = this.copy();
+        if (removeMarks) {
+            copyCP.removeAllMarks();
+        }
         if (face == undefined) {
             var bounds = copyCP.bounds();
             face = copyCP.nearest(bounds.origin.x + bounds.size.width * 0.5, bounds.origin.y + bounds.size.height * 0.5).face;
@@ -4086,8 +4145,27 @@ var CreasePattern = (function (_super) {
         faces.push({ 'face': tree.obj, 'matrix': tree['matrix'] });
         function recurse(node) {
             node.children.forEach(function (child) {
-                var local = child.obj.commonEdges(child.parent.obj).shift().reflectionMatrix();
-                child['matrix'] = child.parent['matrix'].mult(local);
+                var edge = child.obj.commonEdges(child.parent.obj).shift();
+                var angle = edge.angle;
+                if (angle > 0) {
+                    if (angle < 180) {
+                        if (edge.orientation == CreaseDirection.valley) {
+                            angle *= -1;
+                        }
+                        for (var i = 0; i < child.obj.nodes.length; ++i) {
+                            var ccEdge = new Edge(child.obj.nodes[i], child.obj.nodes[i + 1 % child.obj.nodes.length]);
+                            if (ccEdge.equivalent(edge)) {
+                                edge = ccEdge;
+                                break;
+                            }
+                        }
+                    }
+                    var local = edge.rotationMatrix(angle * Math.PI / 180);
+                    child['matrix'] = child.parent['matrix'].mult(local);
+                }
+                else {
+                    child['matrix'] = child.parent['matrix'];
+                }
                 faces.push({ 'face': child.obj, 'matrix': child['matrix'] });
                 recurse(child);
             }, this);
@@ -4102,41 +4180,13 @@ var CreasePattern = (function (_super) {
                 nodeTransformed[node.index] = true;
             }, this);
         }, this);
-        return copyCP.exportFoldFile();
+        return copyCP;
     };
-    CreasePattern.prototype.foldSVG = function (face) {
-        this.clean();
-        var copyCP = this.copy().removeAllMarks();
-        if (face == undefined) {
-            var bounds = copyCP.bounds();
-            face = copyCP.nearest(bounds.origin.x + bounds.size.width * 0.5, bounds.origin.y + bounds.size.height * 0.5).face;
-        }
-        if (face === undefined) {
-            return;
-        }
-        var tree = face.adjacentFaceTree();
-        var faces = [];
-        tree['matrix'] = new Matrix();
-        faces.push({ 'face': tree.obj, 'matrix': tree['matrix'] });
-        function recurse(node) {
-            node.children.forEach(function (child) {
-                var local = child.obj.commonEdges(child.parent.obj).shift().reflectionMatrix();
-                child['matrix'] = child.parent['matrix'].mult(local);
-                faces.push({ 'face': child.obj, 'matrix': child['matrix'] });
-                recurse(child);
-            }, this);
-        }
-        recurse(tree);
-        var nodeTransformed = Array.apply(false, Array(copyCP.nodes.length));
-        faces.forEach(function (el) {
-            el.face.nodes
-                .filter(function (node) { return !nodeTransformed[node.index]; }, this)
-                .forEach(function (node) {
-                node.transform(el.matrix);
-                nodeTransformed[node.index] = true;
-            }, this);
-        }, this);
-        return copyCP.exportSVG();
+    CreasePattern.prototype.fold = function (face, removeMarks) {
+        return this.foldedCP(face, removeMarks).exportFoldFile(true);
+    };
+    CreasePattern.prototype.foldSVG = function (face, removeMarks) {
+        return this.foldedCP(face, removeMarks).exportSVG();
     };
     CreasePattern.prototype["export"] = function (fileType) {
         switch (fileType.toLowerCase()) {
@@ -4144,7 +4194,10 @@ var CreasePattern = (function (_super) {
             case "svg": return this.exportSVG();
         }
     };
-    CreasePattern.prototype.exportFoldFile = function () {
+    CreasePattern.prototype.exportFoldFile = function (folded) {
+        if (folded === undefined) {
+            folded = false;
+        }
         this.nodeArrayDidChange();
         this.edgeArrayDidChange();
         var file = {};
@@ -4152,8 +4205,16 @@ var CreasePattern = (function (_super) {
         file["file_creator"] = "crease pattern Javascript library by Robby Kraft";
         file["file_author"] = "";
         file["file_classes"] = ["singleModel"];
+        file["frame_classes"] = [folded ? "foldedForm" : "creasePattern"];
         file["vertices_coords"] = this.nodes.map(function (node) {
-            return [cleanNumber(node.x, 12), cleanNumber(node.y, 12)];
+            var coords = [cleanNumber(node.x, 12), cleanNumber(node.y, 12)];
+            if (folded && !epsilonEqual(node.z, 0)) {
+                if (!file.hasOwnProperty("frame_attributes")) {
+                    file["frame_attributes"] = ["3D"];
+                }
+                coords.push(cleanNumber(node.z));
+            }
+            return coords;
         }, this);
         file["faces_vertices"] = this.faces.map(function (face) {
             return face.nodes.map(function (node) { return node.index; }, this);
@@ -4168,6 +4229,15 @@ var CreasePattern = (function (_super) {
                 case CreaseDirection.valley: return "V";
                 case CreaseDirection.mark: return "F";
                 default: return "U";
+            }
+        }, this);
+        file["edges_foldAngle"] = this.edges.map(function (edge) {
+            switch (edge.orientation) {
+                case CreaseDirection.border: return 0;
+                case CreaseDirection.mountain: return -1 * edge.angle;
+                case CreaseDirection.valley: return edge.angle;
+                case CreaseDirection.mark: return 0;
+                default: return 0;
             }
         }, this);
         return file;
@@ -4199,7 +4269,12 @@ var CreasePattern = (function (_super) {
         var assignmentDictionary = { "B": CreaseDirection.border, "M": CreaseDirection.mountain, "V": CreaseDirection.valley, "F": CreaseDirection.mark, "U": CreaseDirection.mark };
         file["edges_assignment"]
             .map(function (assignment) { return assignmentDictionary[assignment]; })
-            .forEach(function (orientation, i) { this.edges[i].orientation = orientation; }, this);
+            .forEach(function (orientation, i) { this.edges[i].orientation = orientation; this.edges[i].angle = (orientation == CreaseDirection.valley || orientation == CreaseDirection.mountain) ? 180 : 0; }, this);
+        if (file["edges_foldAngle"] !== undefined) {
+            file["edges_foldAngle"]
+                .map(function (foldAngle) { return Math.abs(foldAngle); })
+                .forEach(function (angle, i) { this.edges[i].angle = angle; }, this);
+        }
         this.faces = file["faces_vertices"]
             .map(function (faceNodeArray, fi) {
             var face = new CreaseFace(this);
@@ -4213,12 +4288,7 @@ var CreasePattern = (function (_super) {
         this.faceArrayDidChange();
         var boundaryPoints = this.edges
             .filter(function (el) { return el.orientation === CreaseDirection.border; }, this)
-            .map(function (el) {
-            return [
-                new XY(el.nodes[0].x, el.nodes[0].y),
-                new XY(el.nodes[1].x, el.nodes[1].y)
-            ];
-        }, this);
+            .map(function (el) { return [el.nodes[0].copy(), el.nodes[1].copy()]; }, this);
         this.setBoundary([].concat.apply([], boundaryPoints));
         this.clean(epsilon);
         return this;

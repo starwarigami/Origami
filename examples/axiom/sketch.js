@@ -217,23 +217,23 @@ origami.onMouseMove = function(event){
 				new Edge(this.touchPoints[0].position, this.touchPoints[1].position).infiniteLine(),
 				new Edge(this.touchPoints[2].position, this.touchPoints[3].position).infiniteLine()
 			]; break;
-			case 4: 
+			case 4:
 				this.marks = [this.touchPoints[0].position];
 				this.lines = [
 					new Edge(this.touchPoints[1].position, this.touchPoints[2].position).infiniteLine()
 				]; break;
-			case 5: 
+			case 5:
 				this.marks = [this.touchPoints[0].position, this.touchPoints[1].position];
 				this.lines = [
 					new Edge(this.touchPoints[2].position, this.touchPoints[3].position).infiniteLine()
 				]; break;
-			case 6: 
+			case 6:
 				this.marks = [this.touchPoints[0].position, this.touchPoints[1].position];
 				this.lines = [
 					new Edge(this.touchPoints[2].position, this.touchPoints[3].position).infiniteLine(),
 					new Edge(this.touchPoints[4].position, this.touchPoints[5].position).infiniteLine()
 				]; break;
-			case 7: 
+			case 7:
 				this.marks = [this.touchPoints[0].position];
 				this.lines = [
 					new Edge(this.touchPoints[1].position, this.touchPoints[2].position).infiniteLine(),
@@ -293,8 +293,8 @@ origami.drawArrowAcross = function(crease, crossing){
 		var arrowVector = perpendicular.nodes[i].subtract(point).normalize();
 		var arrowNormal = arrowVector.rotate90();
 		var arrowhead = new this.scope.Path({segments: [
-			point.add(arrowNormal.scale(-arrowheadWidth*0.375)), 
-			point.add(arrowNormal.scale(arrowheadWidth*0.375)), 
+			point.add(arrowNormal.scale(-arrowheadWidth*0.375)),
+			point.add(arrowNormal.scale(arrowheadWidth*0.375)),
 			point.add(arrowVector.scale(arrowheadLength))
 			], closed: true });
 		arrowhead.fillColor = color;

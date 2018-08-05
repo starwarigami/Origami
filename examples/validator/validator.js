@@ -4,7 +4,7 @@ function showAndScrollResults(){
 	document.getElementById("result-container").style.display = "block";
 	window.dispatchEvent(new Event('resize'));
 	// $('html, body').scrollTo('#result-container');
-	document.getElementById('result-container').scrollIntoView({behavior: "smooth"});	
+	document.getElementById('result-container').scrollIntoView({behavior: "smooth"});
 }
 
 function setJumbotron(success){
@@ -52,6 +52,9 @@ $('#epsilon-radio label').click(function(e) {
 var project1 = new OrigamiPaper("canvas-1");
 var foldedState = new OrigamiFold("canvas-2");
 foldedState.style.face.fillColor = {gray:1.0, alpha:0.2};
+//foldedState.show.edges = true;
+//foldedState.show.marks = true;
+//foldedState.rotate3D = true;
 
 var inputFile = undefined;
 // var valid_epsilon = 0.00001;
@@ -66,6 +69,8 @@ function setInputFile(svg){
 
 function updateFold(cp){
 	foldedState.cp = cp.copy();
+	foldedState.zoom = 1;
+	foldedState.rotation = 0;
 	foldedState.draw();
 	foldedState.update();
 }
@@ -96,7 +101,7 @@ function fileDidLoad(file, mimeType){
 		// project1 = new OrigamiPaper("canvas-1", cp.copy());
 		// project1.cp = new CreasePattern();
 		// project1.draw();
-		
+
 		// project1.cp = cp.copy();
 		project1.show.nodes = true;
 		project1.style.node.radius = 0.015;;
@@ -110,7 +115,7 @@ function fileDidLoad(file, mimeType){
 				var color = { hue:130, saturation:0.8, brightness:0.7, alpha:0.5 }
 				if( !project1.cp.junctions[i].flatFoldable(0.01) ){
 					ffTestPassed = false;
-					color = { hue:0, saturation:0.8, brightness:1, alpha:0.5 } 
+					color = { hue:0, saturation:0.8, brightness:1, alpha:0.5 }
 				} else{
 					project1.nodes[ project1.cp.junctions[i].origin.index ].fillColor = {alpha:0.0};
 				}

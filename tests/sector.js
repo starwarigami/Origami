@@ -21,7 +21,7 @@ sectorProject.updateSector = function(){
 	this.arcLayer.activate();
 	this.arcLayer.removeChildren();
 	var vectors = this.cp.edges.map(function(edge){ return edge.vector(this.centerNode); },this);
-	var arcMidAngle = Math.atan2(vectors[1].y, vectors[1].x) + clockwiseInteriorAngle(vectors[0], vectors[1]) * 0.5;
+	var arcMidAngle = Math.atan2(vectors[1].y, vectors[1].x) + vectors[0].clockwiseInteriorAngle(vectors[1]) * 0.5;
 	var arcVector = new XY(Math.cos(arcMidAngle), Math.sin(arcMidAngle)).normalize().scale(0.5)
 	var mid = this.centerNode.copy().add(arcVector);
 

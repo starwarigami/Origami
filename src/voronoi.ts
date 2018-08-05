@@ -51,8 +51,7 @@ class VoronoiMolecule extends Triangle{
 				// there are two reflected triangles built around the same base line. remove the counter-clockwise wound one
 				this.units = this.units.filter(function(el){
 					// update molecule crimp angle
-					var cross = (el.vertex.y-el.base[0].y)*(el.base[1].x-el.base[0].x) -
-					            (el.vertex.x-el.base[0].x)*(el.base[1].y-el.base[0].y);
+					var cross = el.base[1].subtract(el.base[0]).cross(el.vertex.subtract(el.base[0]));
 					if(cross < 0){ return false;}
 					return true;
 				},this);
@@ -63,13 +62,12 @@ class VoronoiMolecule extends Triangle{
 		var eclipsed:VoronoiMoleculeTriangle = undefined;
 		this.units = this.units.filter(function(el){
 			// update molecule crimp angle
-			var cross = (el.vertex.y - el.base[0].y) * (el.base[1].x - el.base[0].x) -
-			            (el.vertex.x - el.base[0].x) * (el.base[1].y - el.base[0].y);
+			var cross = el.base[1].subtract(el.base[0]).cross(el.vertex.subtract(el.base[0]));
 			if(cross < 0){ eclipsed = el; return false;}
 			return true;
 		},this);
 		if(eclipsed !== undefined){
-			var angle = clockwiseInteriorAngle(eclipsed.vertex.subtract(eclipsed.base[1]), eclipsed.base[0].subtract(eclipsed.base[1]));
+			var angle = eclipsed.vertex.subtract(eclipsed.base[1]).clockwiseInteriorAngle(eclipsed.base[0].subtract(eclipsed.base[1]));
 			this.units.forEach(function(el){ el.crimpAngle -= angle; });
 		}
 	}
@@ -93,7 +91,7 @@ class VoronoiMolecule extends Triangle{
 		var edges:Edge[] = [];
 		var outerEdges = this.units.map(function(el,i){
 			var nextEl = this.units[ (i+1)%this.units.length ];
-			if(el.base[1].equivalent(nextEl.base[0])){ 
+			if(el.base[1].equivalent(nextEl.base[0])){
 				edges.push(new Edge(el.base[1], el.vertex))
 			}
 		},this);
@@ -126,8 +124,8 @@ class VoronoiMoleculeTriangle{
 		if(this.crimpAngle === undefined){
 			var vec1 = base[1].subtract(base[0]);
 			var vec2 = vertex.subtract(base[0]);
-			var a1 = clockwiseInteriorAngle(vec1, vec2);
-			var a2 = clockwiseInteriorAngle(vec2, vec1);
+			var a1 = vec1.clockwiseInteriorAngle(vec2);
+			var a2 = vec2.clockwiseInteriorAngle(vec1);
 			this.crimpAngle = (a1<a2) ? a1 : a2;
 		}
 	}
@@ -137,8 +135,8 @@ class VoronoiMoleculeTriangle{
 		var crimpVector = new XY(Math.cos(baseAngle+this.crimpAngle),Math.sin(baseAngle+this.crimpAngle));
 		var bisectVector = new XY(Math.cos(baseAngle+this.crimpAngle*0.5),Math.sin(baseAngle+this.crimpAngle*0.5));
 		var symmetryLine = new Edge(this.vertex, this.base[0].midpoint(this.base[1]));
-		var crimpPos = intersectionRayEdge(new Ray(this.base[0], crimpVector), symmetryLine);
-		var bisectPos = intersectionRayEdge(new Ray(this.base[0], bisectVector), symmetryLine);
+		var crimpPos = new Ray(this.base[0], crimpVector).intersection(symmetryLine);
+		var bisectPos = new Ray(this.base[0], bisectVector).intersection(symmetryLine);
 		return [crimpPos, bisectPos];
 	}
 	generateCrimpCreaseLines():Edge[]{
@@ -167,8 +165,7 @@ class VoronoiMoleculeTriangle{
 		for(var i = 0; i < points.length; i++){
 			var p0 = points[i];
 			var p1 = points[(i+1)%points.length];
-			var cross = (p.y - p0.y) * (p1.x - p0.x) - 
-			            (p.x - p0.x) * (p1.y - p0.y);
+			var cross = p1.subtract(p0).cross(p.subtract(p0))
 			if (cross < 0) return false;
 		}
 		return true;
@@ -285,7 +282,7 @@ class VoronoiGraph{
 		this.junctions = nodes.map(function(el){
 			var junction = new VoronoiJunction();
 			junction.position = el;
-			junction.cells = this.cells.filter(function(cell){ 
+			junction.cells = this.cells.filter(function(cell){
 				return containsXY(cell.points, el)
 			},this).sort(function(a:VoronoiCell,b:VoronoiCell){
 				var vecA = a.site.subtract(el);
@@ -294,7 +291,7 @@ class VoronoiGraph{
 			});
 			switch(junction.cells.length){
 				case 1: junction.isCorner = true; break;
-				case 2: 
+				case 2:
 					junction.isEdge = true;
 					hull.edges.forEach(function(edge:Edge){
 						if(edge.collinear(junction.position)){
@@ -326,7 +323,7 @@ class VoronoiGraph{
 			},this);
 			var molecule = new VoronoiMolecule(<[XY,XY,XY]>endPoints, j.position, j.isEdge?j.edgeNormal:undefined);
 			return molecule;
-		},this);		
+		},this);
 	}
 
 	/** sorts molecules based on overlap  */
