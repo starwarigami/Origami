@@ -124,6 +124,13 @@ class Matrix{
 					point.x * this.b + point.y * this.e + point.z * this.h + this.ty,
 					point.x * this.c + point.y * this.f + point.z * this.i + this.tz);
 	}
+	translation(vector:XY):Matrix{
+		this.identity();
+		this.tx = vector.x;
+		this.ty = vector.y;
+		this.tz = vector.z;
+		return this;
+	}
 	/** Creates a transformation matrix representing a reflection across a line in the XY plane
 	 * @returns {Matrix}
 	 */
@@ -315,11 +322,18 @@ abstract class LineType implements LineType{
 class Line extends LineType{
 	readonly point:XY;
 	readonly direction:XY;
-	constructor(a?:any, b?:any, c?:number, d?:number){
+	constructor(a?:any, b?:any, c?:any, d?:number){
 		super();
-		// if(b instanceof XY){ this.point = a.copy(); this.direction = b.copy(); }
-		if(isValidPoint(a)){ this.point = new XY(a); this.direction = new XY(b); }
-		else{ this.point = new XY(a, b); this.direction = new XY(c, d); }
+		if(isValidPoint(a)){
+			this.point = new XY(a);
+			if(isValidPoint(b)){ this.direction = new XY(b); }
+			else{ this.direction = new XY(b,c); }
+		}
+		else{
+			this.point = new XY(a, b);
+			if(isValidPoint(c)){ this.direction = new XY(c); }
+			else{ this.direction = new XY(c,d); }
+		}
 	}
 	rays():[Ray,Ray]{var a = new Ray(this.point, this.direction);return [a, a.flip()];}
 	// implements LineType
@@ -396,16 +410,17 @@ class Line extends LineType{
 class Ray extends LineType{
 	readonly origin:XY;
 	readonly direction:XY;
-	constructor(a?:any, b?:any, c?:any, d?:any){
+	constructor(a?:any, b?:any, c?:any, d?:number){
 		super();
-		// if(a instanceof XY){ this.origin = a; this.direction = b; }
 		if(isValidPoint(a)){
 			this.origin = new XY(a);
-			this.direction = new XY(b);
+			if(isValidPoint(b)){ this.direction = new XY(b); }
+			else{ this.direction = new XY(b,c); }
 		}
 		else{
 			this.origin = new XY(a, b);
-			this.direction = new XY(c, d);
+			if(isValidPoint(c)){ this.direction = new XY(c); }
+			else{ this.direction = new XY(c,d); }
 		}
 	}
 	// implements LineType
@@ -497,10 +512,13 @@ class Edge extends LineType{
 	readonly nodes:[XY,XY];
 	// a, b are points, or
 	// (a,b) point 1 and (c,d) point 2, each x,y
-	constructor(a:any, b?:any, c?:any, d?:any){
+	constructor(a:any, b?:any, c?:any, d?:number){
 		super();
-		// if((a instanceof XY) && (b instanceof XY)){this.nodes = [a,b];}
-		if(isValidPoint(a)){this.nodes = [new XY(a), new XY(b)];}
+		if(isValidPoint(a)){
+			if(isValidPoint(b)){this.nodes = [new XY(a), new XY(b)]; }
+			else{  [new XY(a), new XY(b,c)]; }
+		}
+		else if(isValidPoint(c)){ this.nodes = [new XY(a,b), new XY(c)]; }
 		else if(isValidNumber(d)){ this.nodes = [new XY(a,b), new XY(c,d)]; }
 		else if(a.nodes !== undefined){this.nodes = [new XY(a.nodes[0]), new XY(a.nodes[1])];}
 	}
@@ -805,11 +823,15 @@ abstract class PolygonType {
 class Rect extends PolygonType{
 	origin:XY;
 	size:{width:number, height:number};
-	constructor(a:any,b:number,c:number,d?:number){
+	constructor(a:any,b?:number,c?:number,d?:number){
 		super();
-		// a, b, c are points, or
-		// a is point and c, d are width and height respectively
+		// a is another Rect, or
+		// a is point and c, d are width and height respectively, or
 		// (a,b) point and c, d are width and height respectively
+		if (a instanceof Rect){
+			this.origin = a.origin.copy();
+			this.size = {'width':a.size.width, 'height':a.size.height};
+		}
 		if (isValidPoint(a)) {
 			this.origin = new XY(a);
 			this.size = {'width':b, 'height':c};

@@ -17,34 +17,39 @@
 function gimme1XY(a:any, b?:any):XY{
 	// input is 1 XY, or 2 numbers
 	// if(a instanceof XY){ return a; }
-	if(isValidPoint(a)){ return new XY(a.x, a.y); }
+	if(isValidPoint(a)){ return new XY(a); }
 	if(isValidNumber(b)){ return new XY(a, b); }
 	if(a.constructor === Array){ return new XY(a[0], a[1]); }
 }
-function gimme2XY(a:any, b:any, c?:any, d?:any):[XY,XY]{
+function gimme2XY(a:any, b:any, c?:any, d?:number):[XY,XY]{
 	// input is 2 XY, or 4 numbers
 	if(a instanceof XY && b instanceof XY){ return [a,b]; }
-	if(isValidPoint(b)){ return [new XY(a.x,a.y), new XY(b.x,b.y)]; }
+	if(isValidPoint(b)){ return [new XY(a), new XY(b)]; }
+	if(isValidPoint(c)){ return [new XY(a,b), new XY(c)]; }
 	if(isValidNumber(d)){ return [new XY(a, b), new XY(c, d)]; }
 }
-function gimme1Edge(a:any, b?:any, c?:any, d?:any):Edge{
+function gimme1Edge(a:any, b?:any, c?:any, d?:number):Edge{
 	// input is 1 edge, 2 XY, or 4 numbers
 	if(a instanceof Edge){ return a; }
 	if(a.nodes !== undefined){ return new Edge(a.nodes[0], a.nodes[1]); }
 	if(isValidPoint(b) ){ return new Edge(a,b); }
+	if(isValidPoint(a) || isValidPoint(c)){ return new Edge(a,b,c); }
 	if(isValidNumber(d)){ return new Edge(a,b,c,d); }
 }
-function gimme1Ray(a:any, b?:any, c?:any, d?:any):Ray{
-	// input is 1 ray, 2 XY, or 4 numbers
+function gimme1Ray(a:any, b?:any, c?:any, d?:number):Ray{
+	// input is 1 ray, 2 XY, 2 numbers 1 XY or 4 numbers
 	if(a instanceof Ray){ return a; }
 	if(isValidPoint(b) ){ return new Ray(a,b); }
-	if(isValidNumber(d)){ return new Ray(new XY(a,b), new XY(c,d)); }
+	if(isValidPoint(a) || isValidPoint(c)){ return new Ray(a,b,c); }
+	if(isValidNumber(d)){ return new Ray(a,b,c,d); }
 }
-function gimme1Line(a:any, b?:any, c?:any, d?:any):Line{
+function gimme1Line(a:any, b?:any, c?:any, d?:number):Line{
 	// input is 1 line
 	if(a instanceof Line){ return a; }
 	// input is 2 XY
-	if(isValidPoint(b) ){ return new Line(a,b); }
+	if(isValidPoint(b)){ return new Line(a,b); }
+	// input is 2 numbers 1 XY
+	if(isValidPoint(a) || isValidPoint(c)){ return new Line(a,b,c); }
 	// input is 4 numbers
 	if(isValidNumber(d)){ return new Line(a,b,c,d); }
 	// input is 1 line-like object with points in a nodes[] array
@@ -317,14 +322,15 @@ class Crease extends PlanarEdge{
 	constructor(graph:CreasePattern, node1:CreaseNode, node2:CreaseNode){
 		super(graph, node1, node2);
 		this.orientation = CreaseDirection.mark;
-		this.angle = 0;
+		this.angle = undefined;
 		this.newMadeBy = new MadeBy();
 		this.newMadeBy.endPoints = [node1, node2];
 	};
-	mark()    { this.orientation = CreaseDirection.mark; this.angle = 0; return this;}
-	mountain(angle?:number){ this.orientation = CreaseDirection.mountain; this.angle = isValidNumber(angle) ? angle : 180; return this;}
-	valley(angle?:number)  { this.orientation = CreaseDirection.valley; this.angle = isValidNumber(angle) ? angle : 180; return this;}
-	border()  { this.orientation = CreaseDirection.border; this.angle = 0; return this;}
+	mark():Crease{ this.orientation = CreaseDirection.mark; this.angle = undefined; return this;}
+	mountain(angle?:number):Crease{ this.orientation = CreaseDirection.mountain; this.angle = angle; return this;}
+	valley(angle?:number):Crease{ this.orientation = CreaseDirection.valley; this.angle = angle; return this;}
+	border():Crease{ this.orientation = CreaseDirection.border; this.angle = undefined; return this;}
+	setOrientation(orientation:CreaseDirection, angle?:number):Crease { this.orientation = orientation; this.angle = angle; return this; }
 	// AXIOM 3
 	creaseToEdge(edge:Crease):Crease[]{return this.graph.creaseEdgeToEdge(this, edge);}
 }
@@ -959,11 +965,9 @@ class CreasePattern extends PlanarGraph{
 		return newCrease;
 	}
 
-	pleat(count:number, one:Crease, two:Crease):Crease[]{
-		var a = new Edge(one.nodes[0].x, one.nodes[0].y, one.nodes[1].x, one.nodes[1].y);
-		var b = new Edge(two.nodes[0].x, two.nodes[0].y, two.nodes[1].x, two.nodes[1].y);
-		return a.infiniteLine()
-			.subsect(b.infiniteLine(), count)
+	pleat(count:number, one:Edge, two:Edge):Crease[]{
+		return one.infiniteLine()
+			.subsect(two.infiniteLine(), count)
 			.map(function(line){
 					return this.boundary.clipLine( line );
 				},this)
@@ -973,20 +977,81 @@ class CreasePattern extends PlanarGraph{
 			},this);
 	}
 
-	glitchPleat(one:Crease, two:Crease, count:number):Crease[]{
-		var a = new Edge(one.nodes[0].x, one.nodes[0].y, one.nodes[1].x, one.nodes[1].y);
-		var b = new Edge(two.nodes[0].x, two.nodes[0].y, two.nodes[1].x, two.nodes[1].y);
-		var u = a.nodes[0].subtract(a.nodes[1]);
-		var v = b.nodes[0].subtract(b.nodes[1]);
+	glitchPleat(one:Edge, two:Edge, count:number):Crease[]{
+		var u = one.vector().invert();
+		var v = two.vector().invert();
 		return Array.apply(null, Array(count-1))
 			.map(function(el,i){ return (i+1)/count; },this)
 			.map(function(el){
-				var origin = a.nodes[0].lerp(b.nodes[0], el);
+				var origin = one.nodes[0].lerp(two.nodes[0], el);
 				var vector = u.lerp(v, el);
 				return this.boundary.clipLine( new Line(origin, vector) );
 			},this)
 			.filter(function(el){ return el !== undefined; },this)
 			.map(function(el){ return this.newCrease(el.nodes[0].x, el.nodes[0].y, el.nodes[1].x, el.nodes[1].y) },this);
+	}
+
+	pleatGrid(dimX:number, dimY:number):Crease[]{
+		var vertices:XY[] = this.boundary.minimumRect().vertices();
+		return this.pleat(dimX, new Edge(vertices[0], vertices[3]), new Edge(vertices[1], vertices[2]))
+			.concat(this.pleat(dimY, new Edge(vertices[0], vertices[1]), new Edge(vertices[3], vertices[2])));
+	}
+
+	replicate(selection:Crease[], m:Matrix, count?:number):Crease[]{
+		var creases:Crease[] = selection.map(function(crease):Crease{
+				var newCrease = this.creaseEdge(crease.copy().transform(m));
+				if (newCrease !== undefined){ newCrease.setOrientation(crease.orientation, crease.angle); }
+				return newCrease;
+			}, this)
+			.filter(function(el){ return el !== undefined; });
+		if(count > 1){ creases = creases.concat(this.replicate(creases, m, count - 1)); }
+		return creases;
+	}
+
+	getCrease(a?:any,b?:any,c?:number,d?:number):Crease{
+		var edge:Edge = gimme1Edge(a,b,c,d);
+		return this.edges.filter(function(el):boolean{ return el.equivalent(edge); }).shift();
+	}
+	getCreasesWithinBox(a:any,b?:any,c?:number,d?:number):Crease[]{
+		var box:Rect = new Rect(a,b,c,d);
+		return this.edges.filter(function(el):boolean{ return box.coincident(el.nodes[0]) && box.coincident(el.nodes[0]); });
+	}
+	getCreasesIntersectingBox(a:any,b?:any,c?:number,d?:number):Crease[]{
+		var box:Rect = new Rect(a,b,c,d);
+		return this.edges.filter(function(el):boolean{ return box.coincident(el.nodes[0]) || box.coincident(el.nodes[0]); });
+	}
+	getCreasesIntersectingPoint(a:any,b?:number):Crease[]{
+		var point:XY = gimme1XY(a,b);
+		return this.edges.filter(function(el):boolean{ return el.collinear(point); });
+	}
+	getCreasesIntersectingEdge(a:any,b?:any,c?:number,d?:number):Crease[]{
+		var edge:Edge = gimme1Edge(a,b,c,d);
+		return this.edges.filter(function(el):boolean{ return edge.intersection(el) !== undefined; });
+	}
+	getCreasesIntersectingRay(a:any,b?:any,c?:number,d?:number):Crease[]{
+		var ray:Ray = gimme1Ray(a,b,c,d);
+		return this.edges.filter(function(el):boolean{ return ray.intersection(el) !== undefined; });
+	}
+	getCreasesIntersectingLine(a:any,b?:any,c?:number,d?:number):Crease[]{
+		var line:Line = gimme1Line(a,b,c,d);
+		return this.edges.filter(function(el):boolean{ return line.intersection(el) !== undefined; });
+	}
+	getCollinearCreases(line:LineType, strict?:boolean):Crease[]{
+		if (strict === undefined){ strict = false; }
+		if (strict){
+			return this.edges.filter(function(el):boolean{ return line.collinear(el.nodes[0]) && line.collinear(el.nodes[1]); });
+		}
+		else{
+			return this.edges.filter(function(el):boolean{
+				var node1OnLine:boolean = line.collinear(el.nodes[0]);
+				var node2OnLine:boolean = line.collinear(el.nodes[1]);
+				if (node1OnLine && node2OnLine){ return true; }
+				if (!node1OnLine && !node2OnLine){ return false; }
+				if (el.vector().equivalent(line.vector())){ return true; }
+				if (el.vector().invert().equivalent(line.vector())){ return true; }
+				return false;
+			});
+		}
 	}
 
 	availableAxiomFolds():Edge[]{
@@ -1298,7 +1363,10 @@ class CreasePattern extends PlanarGraph{
 			var centre = undefined;
 			node.children.forEach(function(child){
 				var edge = child.obj.commonEdges(child.parent.obj).shift();
-				var angle = edge.angle;
+				var angle:number = 0;
+				if (edge.orientation == CreaseDirection.valley || edge.orientation == CreaseDirection.mountain){
+					angle = isValidNumber(edge.angle) ? edge.angle : 180;
+				}
 				if(angle > 0){
 					if(angle < 180){
 						if(edge.orientation == CreaseDirection.valley){ angle *= -1; }
@@ -1382,8 +1450,8 @@ class CreasePattern extends PlanarGraph{
 		file["edges_foldAngle"] = this.edges.map(function(edge){
 			switch(edge.orientation){
 				case CreaseDirection.border: return 0;
-				case CreaseDirection.mountain: return -1 * edge.angle;
-				case CreaseDirection.valley: return edge.angle;
+				case CreaseDirection.mountain: return isValidNumber(edge.angle) ? -1 * edge.angle : 180;
+				case CreaseDirection.valley: return isValidNumber(edge.angle) ? edge.angle : 180;
 				case CreaseDirection.mark: return 0;
 				default: return 0;
 			}
@@ -1432,7 +1500,7 @@ class CreasePattern extends PlanarGraph{
 		var assignmentDictionary = { "B": CreaseDirection.border, "M": CreaseDirection.mountain, "V": CreaseDirection.valley, "F": CreaseDirection.mark, "U": CreaseDirection.mark };
 		file["edges_assignment"]
 			.map(function(assignment){ return assignmentDictionary[assignment]; })
-			.forEach(function(orientation, i){ this.edges[i].orientation = orientation; this.edges[i].angle = (orientation == CreaseDirection.valley || orientation == CreaseDirection.mountain) ? 180 : 0 },this);
+			.forEach(function(orientation, i){ this.edges[i].orientation = orientation; },this);
 
 		if (file["edges_foldAngle"] !== undefined) {
 			file["edges_foldAngle"]

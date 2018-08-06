@@ -100,6 +100,13 @@ var Matrix = (function () {
     Matrix.prototype.transform = function (point) {
         return new XY(point.x * this.a + point.y * this.d + point.z * this.g + this.tx, point.x * this.b + point.y * this.e + point.z * this.h + this.ty, point.x * this.c + point.y * this.f + point.z * this.i + this.tz);
     };
+    Matrix.prototype.translation = function (vector) {
+        this.identity();
+        this.tx = vector.x;
+        this.ty = vector.y;
+        this.tz = vector.z;
+        return this;
+    };
     Matrix.prototype.reflection = function (line) {
         var normal = line.vector().rotate90().normalize();
         var a = normal.x;
@@ -284,11 +291,21 @@ var Line = (function (_super) {
         var _this = _super.call(this) || this;
         if (isValidPoint(a)) {
             _this.point = new XY(a);
-            _this.direction = new XY(b);
+            if (isValidPoint(b)) {
+                _this.direction = new XY(b);
+            }
+            else {
+                _this.direction = new XY(b, c);
+            }
         }
         else {
             _this.point = new XY(a, b);
-            _this.direction = new XY(c, d);
+            if (isValidPoint(c)) {
+                _this.direction = new XY(c);
+            }
+            else {
+                _this.direction = new XY(c, d);
+            }
         }
         return _this;
     }
@@ -371,11 +388,21 @@ var Ray = (function (_super) {
         var _this = _super.call(this) || this;
         if (isValidPoint(a)) {
             _this.origin = new XY(a);
-            _this.direction = new XY(b);
+            if (isValidPoint(b)) {
+                _this.direction = new XY(b);
+            }
+            else {
+                _this.direction = new XY(b, c);
+            }
         }
         else {
             _this.origin = new XY(a, b);
-            _this.direction = new XY(c, d);
+            if (isValidPoint(c)) {
+                _this.direction = new XY(c);
+            }
+            else {
+                _this.direction = new XY(c, d);
+            }
         }
         return _this;
     }
@@ -484,7 +511,15 @@ var Edge = (function (_super) {
     function Edge(a, b, c, d) {
         var _this = _super.call(this) || this;
         if (isValidPoint(a)) {
-            _this.nodes = [new XY(a), new XY(b)];
+            if (isValidPoint(b)) {
+                _this.nodes = [new XY(a), new XY(b)];
+            }
+            else {
+                [new XY(a), new XY(b, c)];
+            }
+        }
+        else if (isValidPoint(c)) {
+            _this.nodes = [new XY(a, b), new XY(c)];
         }
         else if (isValidNumber(d)) {
             _this.nodes = [new XY(a, b), new XY(c, d)];
@@ -780,6 +815,10 @@ var Rect = (function (_super) {
     __extends(Rect, _super);
     function Rect(a, b, c, d) {
         var _this = _super.call(this) || this;
+        if (a instanceof Rect) {
+            _this.origin = a.origin.copy();
+            _this.size = { 'width': a.size.width, 'height': a.size.height };
+        }
         if (isValidPoint(a)) {
             _this.origin = new XY(a);
             _this.size = { 'width': b, 'height': c };
@@ -3102,7 +3141,7 @@ var PlanarGraph = (function (_super) {
 }(Graph));
 function gimme1XY(a, b) {
     if (isValidPoint(a)) {
-        return new XY(a.x, a.y);
+        return new XY(a);
     }
     if (isValidNumber(b)) {
         return new XY(a, b);
@@ -3116,7 +3155,10 @@ function gimme2XY(a, b, c, d) {
         return [a, b];
     }
     if (isValidPoint(b)) {
-        return [new XY(a.x, a.y), new XY(b.x, b.y)];
+        return [new XY(a), new XY(b)];
+    }
+    if (isValidPoint(c)) {
+        return [new XY(a, b), new XY(c)];
     }
     if (isValidNumber(d)) {
         return [new XY(a, b), new XY(c, d)];
@@ -3132,6 +3174,9 @@ function gimme1Edge(a, b, c, d) {
     if (isValidPoint(b)) {
         return new Edge(a, b);
     }
+    if (isValidPoint(a) || isValidPoint(c)) {
+        return new Edge(a, b, c);
+    }
     if (isValidNumber(d)) {
         return new Edge(a, b, c, d);
     }
@@ -3143,8 +3188,11 @@ function gimme1Ray(a, b, c, d) {
     if (isValidPoint(b)) {
         return new Ray(a, b);
     }
+    if (isValidPoint(a) || isValidPoint(c)) {
+        return new Ray(a, b, c);
+    }
     if (isValidNumber(d)) {
-        return new Ray(new XY(a, b), new XY(c, d));
+        return new Ray(a, b, c, d);
     }
 }
 function gimme1Line(a, b, c, d) {
@@ -3153,6 +3201,9 @@ function gimme1Line(a, b, c, d) {
     }
     if (isValidPoint(b)) {
         return new Line(a, b);
+    }
+    if (isValidPoint(a) || isValidPoint(c)) {
+        return new Line(a, b, c);
     }
     if (isValidNumber(d)) {
         return new Line(a, b, c, d);
@@ -3427,16 +3478,17 @@ var Crease = (function (_super) {
     function Crease(graph, node1, node2) {
         var _this = _super.call(this, graph, node1, node2) || this;
         _this.orientation = CreaseDirection.mark;
-        _this.angle = 0;
+        _this.angle = undefined;
         _this.newMadeBy = new MadeBy();
         _this.newMadeBy.endPoints = [node1, node2];
         return _this;
     }
     ;
-    Crease.prototype.mark = function () { this.orientation = CreaseDirection.mark; this.angle = 0; return this; };
-    Crease.prototype.mountain = function (angle) { this.orientation = CreaseDirection.mountain; this.angle = isValidNumber(angle) ? angle : 180; return this; };
-    Crease.prototype.valley = function (angle) { this.orientation = CreaseDirection.valley; this.angle = isValidNumber(angle) ? angle : 180; return this; };
-    Crease.prototype.border = function () { this.orientation = CreaseDirection.border; this.angle = 0; return this; };
+    Crease.prototype.mark = function () { this.orientation = CreaseDirection.mark; this.angle = undefined; return this; };
+    Crease.prototype.mountain = function (angle) { this.orientation = CreaseDirection.mountain; this.angle = angle; return this; };
+    Crease.prototype.valley = function (angle) { this.orientation = CreaseDirection.valley; this.angle = angle; return this; };
+    Crease.prototype.border = function () { this.orientation = CreaseDirection.border; this.angle = undefined; return this; };
+    Crease.prototype.setOrientation = function (orientation, angle) { this.orientation = orientation; this.angle = angle; return this; };
     Crease.prototype.creaseToEdge = function (edge) { return this.graph.creaseEdgeToEdge(this, edge); };
     return Crease;
 }(PlanarEdge));
@@ -3923,10 +3975,8 @@ var CreasePattern = (function (_super) {
         return newCrease;
     };
     CreasePattern.prototype.pleat = function (count, one, two) {
-        var a = new Edge(one.nodes[0].x, one.nodes[0].y, one.nodes[1].x, one.nodes[1].y);
-        var b = new Edge(two.nodes[0].x, two.nodes[0].y, two.nodes[1].x, two.nodes[1].y);
-        return a.infiniteLine()
-            .subsect(b.infiniteLine(), count)
+        return one.infiniteLine()
+            .subsect(two.infiniteLine(), count)
             .map(function (line) {
             return this.boundary.clipLine(line);
         }, this)
@@ -3936,19 +3986,91 @@ var CreasePattern = (function (_super) {
         }, this);
     };
     CreasePattern.prototype.glitchPleat = function (one, two, count) {
-        var a = new Edge(one.nodes[0].x, one.nodes[0].y, one.nodes[1].x, one.nodes[1].y);
-        var b = new Edge(two.nodes[0].x, two.nodes[0].y, two.nodes[1].x, two.nodes[1].y);
-        var u = a.nodes[0].subtract(a.nodes[1]);
-        var v = b.nodes[0].subtract(b.nodes[1]);
+        var u = one.vector().invert();
+        var v = two.vector().invert();
         return Array.apply(null, Array(count - 1))
             .map(function (el, i) { return (i + 1) / count; }, this)
             .map(function (el) {
-            var origin = a.nodes[0].lerp(b.nodes[0], el);
+            var origin = one.nodes[0].lerp(two.nodes[0], el);
             var vector = u.lerp(v, el);
             return this.boundary.clipLine(new Line(origin, vector));
         }, this)
             .filter(function (el) { return el !== undefined; }, this)
             .map(function (el) { return this.newCrease(el.nodes[0].x, el.nodes[0].y, el.nodes[1].x, el.nodes[1].y); }, this);
+    };
+    CreasePattern.prototype.pleatGrid = function (dimX, dimY) {
+        var vertices = this.boundary.minimumRect().vertices();
+        return this.pleat(dimX, new Edge(vertices[0], vertices[3]), new Edge(vertices[1], vertices[2]))
+            .concat(this.pleat(dimY, new Edge(vertices[0], vertices[1]), new Edge(vertices[3], vertices[2])));
+    };
+    CreasePattern.prototype.replicate = function (selection, m, count) {
+        var creases = selection.map(function (crease) {
+            var newCrease = this.creaseEdge(crease.copy().transform(m));
+            if (newCrease !== undefined) {
+                newCrease.setOrientation(crease.orientation, crease.angle);
+            }
+            return newCrease;
+        }, this)
+            .filter(function (el) { return el !== undefined; });
+        if (count > 1) {
+            creases = creases.concat(this.replicate(creases, m, count - 1));
+        }
+        return creases;
+    };
+    CreasePattern.prototype.getCrease = function (a, b, c, d) {
+        var edge = gimme1Edge(a, b, c, d);
+        return this.edges.filter(function (el) { return el.equivalent(edge); }).shift();
+    };
+    CreasePattern.prototype.getCreasesWithinBox = function (a, b, c, d) {
+        var box = new Rect(a, b, c, d);
+        return this.edges.filter(function (el) { return box.coincident(el.nodes[0]) && box.coincident(el.nodes[0]); });
+    };
+    CreasePattern.prototype.getCreasesIntersectingBox = function (a, b, c, d) {
+        var box = new Rect(a, b, c, d);
+        return this.edges.filter(function (el) { return box.coincident(el.nodes[0]) || box.coincident(el.nodes[0]); });
+    };
+    CreasePattern.prototype.getCreasesIntersectingPoint = function (a, b) {
+        var point = gimme1XY(a, b);
+        return this.edges.filter(function (el) { return el.collinear(point); });
+    };
+    CreasePattern.prototype.getCreasesIntersectingEdge = function (a, b, c, d) {
+        var edge = gimme1Edge(a, b, c, d);
+        return this.edges.filter(function (el) { return edge.intersection(el) !== undefined; });
+    };
+    CreasePattern.prototype.getCreasesIntersectingRay = function (a, b, c, d) {
+        var ray = gimme1Ray(a, b, c, d);
+        return this.edges.filter(function (el) { return ray.intersection(el) !== undefined; });
+    };
+    CreasePattern.prototype.getCreasesIntersectingLine = function (a, b, c, d) {
+        var line = gimme1Line(a, b, c, d);
+        return this.edges.filter(function (el) { return line.intersection(el) !== undefined; });
+    };
+    CreasePattern.prototype.getCollinearCreases = function (line, strict) {
+        if (strict === undefined) {
+            strict = false;
+        }
+        if (strict) {
+            return this.edges.filter(function (el) { return line.collinear(el.nodes[0]) && line.collinear(el.nodes[1]); });
+        }
+        else {
+            return this.edges.filter(function (el) {
+                var node1OnLine = line.collinear(el.nodes[0]);
+                var node2OnLine = line.collinear(el.nodes[1]);
+                if (node1OnLine && node2OnLine) {
+                    return true;
+                }
+                if (!node1OnLine && !node2OnLine) {
+                    return false;
+                }
+                if (el.vector().equivalent(line.vector())) {
+                    return true;
+                }
+                if (el.vector().invert().equivalent(line.vector())) {
+                    return true;
+                }
+                return false;
+            });
+        }
     };
     CreasePattern.prototype.availableAxiomFolds = function () {
         var edges = [];
@@ -4147,7 +4269,10 @@ var CreasePattern = (function (_super) {
             var centre = undefined;
             node.children.forEach(function (child) {
                 var edge = child.obj.commonEdges(child.parent.obj).shift();
-                var angle = edge.angle;
+                var angle = 0;
+                if (edge.orientation == CreaseDirection.valley || edge.orientation == CreaseDirection.mountain) {
+                    angle = isValidNumber(edge.angle) ? edge.angle : 180;
+                }
                 if (angle > 0) {
                     if (angle < 180) {
                         if (edge.orientation == CreaseDirection.valley) {
@@ -4234,8 +4359,8 @@ var CreasePattern = (function (_super) {
         file["edges_foldAngle"] = this.edges.map(function (edge) {
             switch (edge.orientation) {
                 case CreaseDirection.border: return 0;
-                case CreaseDirection.mountain: return -1 * edge.angle;
-                case CreaseDirection.valley: return edge.angle;
+                case CreaseDirection.mountain: return isValidNumber(edge.angle) ? -1 * edge.angle : 180;
+                case CreaseDirection.valley: return isValidNumber(edge.angle) ? edge.angle : 180;
                 case CreaseDirection.mark: return 0;
                 default: return 0;
             }
@@ -4269,7 +4394,7 @@ var CreasePattern = (function (_super) {
         var assignmentDictionary = { "B": CreaseDirection.border, "M": CreaseDirection.mountain, "V": CreaseDirection.valley, "F": CreaseDirection.mark, "U": CreaseDirection.mark };
         file["edges_assignment"]
             .map(function (assignment) { return assignmentDictionary[assignment]; })
-            .forEach(function (orientation, i) { this.edges[i].orientation = orientation; this.edges[i].angle = (orientation == CreaseDirection.valley || orientation == CreaseDirection.mountain) ? 180 : 0; }, this);
+            .forEach(function (orientation, i) { this.edges[i].orientation = orientation; }, this);
         if (file["edges_foldAngle"] !== undefined) {
             file["edges_foldAngle"]
                 .map(function (foldAngle) { return Math.abs(foldAngle); })
