@@ -1295,16 +1295,15 @@ class CreasePattern extends PlanarGraph{
 		tree['matrix'] = new Matrix();
 		faces.push({'face':tree.obj, 'matrix':tree['matrix']});
 		function recurse(node){
+			var centre = undefined;
 			node.children.forEach(function(child){
 				var edge = child.obj.commonEdges(child.parent.obj).shift();
 				var angle = edge.angle;
 				if(angle > 0){
 					if(angle < 180){
 						if(edge.orientation == CreaseDirection.valley){ angle *= -1; }
-						for(var i = 0; i < child.obj.nodes.length; ++i){
-							var ccEdge = new Edge(child.obj.nodes[i], child.obj.nodes[i + 1 % child.obj.nodes.length]);
-							if(ccEdge.equivalent(edge)){ edge = ccEdge; break; }
-						}
+						if(centre === undefined){ centre = child.parent.obj.centroid(); }
+						if (centre.subtract(edge.nodes[1]).cross(edge.vector()) < 0){ edge =  new Edge(edge.nodes[1], edge.nodes[0]); }
 					}
 					var local = edge.rotationMatrix(angle*Math.PI/180);
 					child['matrix'] = child.parent['matrix'].mult(local);

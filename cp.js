@@ -119,9 +119,9 @@ var Matrix = (function () {
         this.tz = 0;
         return this;
     };
-    Matrix.prototype.rotation = function (angle, axis) {
-        var point = axis === undefined ? XY.origin : axis.pointOnLine().invert();
-        var direction = axis === undefined ? XY.K : axis.vector().normalize();
+    Matrix.prototype.rotation = function (angle, originOrAxis) {
+        var point = originOrAxis === undefined ? XY.origin : (isValidPoint(originOrAxis) ? new XY(originOrAxis).invert() : originOrAxis.pointOnLine().invert());
+        var direction = originOrAxis === undefined || isValidPoint(originOrAxis) ? XY.K : originOrAxis.vector().normalize();
         var cosA = Math.cos(angle);
         var sinA = Math.sin(angle);
         this.a = cosA + direction.x * direction.x * (1 - cosA);
@@ -4144,6 +4144,7 @@ var CreasePattern = (function (_super) {
         tree['matrix'] = new Matrix();
         faces.push({ 'face': tree.obj, 'matrix': tree['matrix'] });
         function recurse(node) {
+            var centre = undefined;
             node.children.forEach(function (child) {
                 var edge = child.obj.commonEdges(child.parent.obj).shift();
                 var angle = edge.angle;
@@ -4152,12 +4153,11 @@ var CreasePattern = (function (_super) {
                         if (edge.orientation == CreaseDirection.valley) {
                             angle *= -1;
                         }
-                        for (var i = 0; i < child.obj.nodes.length; ++i) {
-                            var ccEdge = new Edge(child.obj.nodes[i], child.obj.nodes[i + 1 % child.obj.nodes.length]);
-                            if (ccEdge.equivalent(edge)) {
-                                edge = ccEdge;
-                                break;
-                            }
+                        if (centre === undefined) {
+                            centre = child.parent.obj.centroid();
+                        }
+                        if (centre.subtract(edge.nodes[1]).cross(edge.vector()) < 0) {
+                            edge = new Edge(edge.nodes[1], edge.nodes[0]);
                         }
                     }
                     var local = edge.rotationMatrix(angle * Math.PI / 180);

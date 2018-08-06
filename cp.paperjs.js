@@ -499,6 +499,7 @@ var OrigamiFold = (function(){
 		this.loader = new PaperJSLoader();
 		this.foldedLayer = new this.scope.Layer();
 		this.mouseZoom = true;
+		this.mouseRotate = true;
 		this.rotate3D = false;
 		this.zoom = 1.0;
 		this.padding = 0.0;
@@ -561,11 +562,11 @@ var OrigamiFold = (function(){
 					that.mouse.isDragging = true;
 					that.onMouseDidBeginDrag(event);
 				}
-				if(that.mouseZoom){
+				if(that.mouseZoom || that.mouseRotate){
 					var v = new XY(that.mouse.prev.x - that.mouse.position.x, that.mouse.prev.y - that.mouse.position.y);
 					var a = XY.I.counterClockwiseInteriorAngle(v);
 					var q;
-					if (that.rotate3D){ q = Math.floor(4*a/Math.PI + 0.5) % 8 + 1; }
+					if (that.mouseRotate && that.rotate3D){ q = Math.floor(4*a/Math.PI + 0.5) % 8 + 1; }
 					else{ q = Math.floor(2*a/Math.PI + 0.5) % 4 + 1; }
 					if (q != that.mouse.quadrant) {
 						if (that.mouse.quadrant != 0){
@@ -579,23 +580,23 @@ var OrigamiFold = (function(){
 						that.mouse.quadrant = q;
 					}
 					v = new XY(that.mouse.ref.x - that.mouse.position.x, that.mouse.ref.y - that.mouse.position.y);
-					if (that.rotate3D){
+					if (that.mouseRotate && that.rotate3D){
 						if (q == 1) { that.yaw = that.rotationOnMousePress + v.magnitude(); }
 						if (q == 2) { that.pitch = that.pitchOnMousePress + v.magnitude(); }
-						if (q == 3) { that.zoom = that.zoomOnMousePress + 0.01 * v.magnitude(); }
+						if (q == 3 && that.mouseZoom) { that.zoom = that.zoomOnMousePress + 0.01 * v.magnitude(); }
 						if (q == 4) { that.roll = that.rollOnMousePress - v.magnitude(); }
 						if (q == 5) { that.yaw = that.rotationOnMousePress - v.magnitude(); }
 						if (q == 6) { that.pitch = that.pitchOnMousePress - v.magnitude(); }
-						if (q == 7) { that.zoom = that.zoomOnMousePress - 0.01 * v.magnitude(); }
+						if (q == 7 && that.mouseZoom) { that.zoom = that.zoomOnMousePress - 0.01 * v.magnitude(); }
 						if (q == 8) { that.roll = that.rollOnMousePress + v.magnitude(); }
 						that.buildRotationMatrix();
 						that.updatePositions();
 					}
 					else{
-						if (q == 1) { that.rotation = that.rotationOnMousePress + v.magnitude(); }
-						if (q == 2) { that.zoom = that.zoomOnMousePress + 0.01 * v.magnitude(); }
-						if (q == 3) { that.rotation = that.rotationOnMousePress - v.magnitude(); }
-						if (q == 4) { that.zoom = that.zoomOnMousePress - 0.01 * v.magnitude(); }
+						if (q == 1 && that.mouseRotate) { that.rotation = that.rotationOnMousePress + v.magnitude(); }
+						if (q == 2 && that.mouseZoom) { that.zoom = that.zoomOnMousePress + 0.01 * v.magnitude(); }
+						if (q == 3 && that.mouseRotate) { that.rotation = that.rotationOnMousePress - v.magnitude(); }
+						if (q == 4 && that.mouseZoom) { that.zoom = that.zoomOnMousePress - 0.01 * v.magnitude(); }
 						//that.zoom = that.zoomOnMousePress + 0.01 * (that.mouse.pressed.y - that.mouse.position.y);
 						//that.rotation = that.rotationOnMousePress + (that.mouse.pressed.x - that.mouse.position.x);
 					}

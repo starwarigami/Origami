@@ -150,9 +150,9 @@ class Matrix{
 	/** Creates a transformation matrix representing a rotation around the origin, or a specified line in the XY plane into 3D-space
 	 * @returns {Matrix}
 	 */
-	rotation(angle:number, axis?:LineType):Matrix{
-		var point:XY = axis === undefined ? XY.origin : axis.pointOnLine().invert();
-		var direction:XY = axis === undefined ? XY.K : axis.vector().normalize();
+	rotation(angle:number, originOrAxis?:any):Matrix{
+		var point:XY = originOrAxis === undefined ? XY.origin : (isValidPoint(originOrAxis) ? new XY(originOrAxis).invert() : (<LineType>originOrAxis).pointOnLine().invert());
+		var direction:XY = originOrAxis === undefined || isValidPoint(originOrAxis) ? XY.K : (<LineType>originOrAxis).vector().normalize();
 		var cosA:number = Math.cos(angle);
 		var sinA:number = Math.sin(angle);
 		this.a = cosA + direction.x * direction.x * (1 - cosA);
