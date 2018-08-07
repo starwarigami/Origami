@@ -5,8 +5,7 @@ folded.mouseZoom = false;
 folded.rotate3D = true;
 
 function onChangeTest() {	origami.reset(); }
-function onChangeWireFrame() {	updateFoldedState(origami.cp); }
-function onChangeMarks() {	updateFoldedState(origami.cp); }
+function onChangeView() {	updateFoldedState(origami.cp); }
 
 function updateFoldedState(cp, topFace){
 	var combo = document.menu.wireframeCombo;
@@ -92,25 +91,42 @@ origami.reset = function(){
 			this.cp.crease(5/32,1/32,5/32,0.25).mountain();
 			this.cp.crease(5/32,0.25,5/32,9/32).valley();
 			this.cp.crease(5/32,9/32,5/32,5/16).mountain();
-			this.cp.crease(5/32,5/16,5/32,3/8);
+			//this.cp.crease(5/32,5/16,5/32,3/8);
 			this.cp.crease(5/32,3/8,5/32,7/16).mountain();
 			this.cp.crease(5/32,7/16,5/32,15/32).valley();
 			this.cp.crease(5/32,15/32,5/32,0.5).mountain();
 			this.cp.crease(3/16,0,3/16,1/32).mountain();
-			this.cp.crease(3/16,1/32,3/16,7/16);
+			//this.cp.crease(3/16,1/32,3/16,7/16);
+			//extra creases
+			this.cp.crease(3/16,1/32,3/16,0.25).valley(45);
+			this.cp.crease(3/16,0.25,3/16,9/32).mountain(45);
+			this.cp.crease(3/16,9/32,3/16,5/16).valley(45);
+			this.cp.crease(3/16,5/16,3/16,11/32).mountain(45);
+			this.cp.crease(3/16,11/32,3/16,7/16).valley(45);
+			//end extra creases
 			this.cp.crease(3/16,7/16,3/16,0.5).valley();
-			this.cp.crease(0.25,0,0.25,3/32);
+			//this.cp.crease(0.25,0,0.25,3/32);
 			this.cp.crease(0.25,3/32,0.25,0.25).valley();
 			this.cp.crease(0.25,0.25,0.25,9/32).mountain();
 			this.cp.crease(0.25,9/32,0.25,5/16).valley();
 			this.cp.crease(0.25,5/16,0.25,11/32).mountain();
 			this.cp.crease(0.25,11/32,0.25,3/8).valley();
 			this.cp.crease(0.25,3/18,0.25,0.5).mountain();
-			this.cp.crease(9/32,0,9/32,13/32);
+			//this.cp.crease(9/32,0,9/32,13/32);
 			this.cp.crease(9/32,13/32,9/32,0.5).valley();
-			this.cp.crease(5/16,0,5/16,7/16);
+			//this.cp.crease(5/16,0,5/16,7/16);
+			//extra creases
+			//this.cp.crease(5/16,0,5/16,1/32);
+			this.cp.crease(5/16,1/32,5/16,3/32).valley(45);
+			this.cp.crease(5/16,3/32,5/16,0.25).mountain(45);
+			this.cp.crease(5/16,0.25,5/16,9/32).valley(45);
+			this.cp.crease(5/16,9/32,5/16,5/16).mountain(45);
+			this.cp.crease(5/16,5/16,5/16,11/32).valley(45);
+			this.cp.crease(5/16,11/32,5/16,13/32).mountain(45);
+			this.cp.crease(5/16,13/32,5/16,7/16).valley(45);
+			//end extra creases
 			this.cp.crease(5/16,7/16,5/16,0.5).mountain();
-			this.cp.crease(11/32,0,11/32,15/32);
+			//this.cp.crease(11/32,0,11/32,15/32);
 			this.cp.crease(11/32,15/32,11/32,0.5).valley();
 			this.cp.crease(3/8,0,3/8,3/32).valley(90);
 			this.cp.crease(3/8,3/32,3/8,0.25).mountain(90);
@@ -134,40 +150,49 @@ origami.reset = function(){
 			this.cp.crease(15/32,11/32,15/32,13/32).valley(90);
 			this.cp.crease(15/32,13/32,15/32,7/16).mountain(90);
 			this.cp.crease(15/32,7/16,15/32,0.5).valley(90);
-			this.cp.crease(0.5,0,0.5,0.5);
+			//this.cp.crease(0.5,0,0.5,0.5);
 			//horizontal creases
 			this.cp.crease(0,1/32,3/16,1/32).valley();
-			this.cp.crease(3/16,1/32,0.5,1/32);
-			this.cp.crease(0,1/16,0.5,1/16);
-			this.cp.crease(0,3/32,0.25,3/32);
+			//this.cp.crease(3/16,1/32,0.5,1/32);
+			//extra creases
+			this.cp.crease(3/16,1/32,5/16,1/32).mountain(45);
+			//this.cp.crease(5/16,1/32,0.5,1/32);
+			//end extra creases
+			//this.cp.crease(0,1/16,0.5,1/16);
+			//this.cp.crease(0,3/32,0.25,3/32);
 			this.cp.crease(0.25,3/32,0.5,3/32).valley();
-			this.cp.crease(0,1/8,0.5,1/8);
+			//this.cp.crease(0,1/8,0.5,1/8);
 			this.cp.crease(0,0.25,0.5,0.25).mountain();
 			this.cp.crease(0,9/32,0.5,9/32).valley();
-			this.cp.crease(0,5/16,5/32,5/16);
+			//this.cp.crease(0,5/16,5/32,5/16);
 			this.cp.crease(5/32,5/16,6/16,5/16).mountain();
 			this.cp.crease(6/16,5/16,7/16,5/16).mountain(90);
 			this.cp.crease(7/16,5/16,0.5,5/16).mountain();
 			this.cp.crease(0,11/32,0.5,11/32).valley();
 			this.cp.crease(0,3/8,5/32,3/8).mountain();
-			this.cp.crease(5/32,3/8,3/8,3/8);
+			//this.cp.crease(5/32,3/8,3/8,3/8);
 			this.cp.crease(3/8,3/8,7/16,3/8).mountain();
-			this.cp.crease(7/16,3/8,0.5,3/8);
-			this.cp.crease(0,13/32,9/32,13/32);
+			//this.cp.crease(7/16,3/8,0.5,3/8);
+			//this.cp.crease(0,13/32,9/32,13/32);
 			this.cp.crease(9/32,13/32,0.5,13/32).valley();
 			this.cp.crease(0,7/16,3/16,7/16).valley();
-			this.cp.crease(3/16,7/16,5/16,7/16);
+			//this.cp.crease(3/16,7/16,5/16,7/16);
+			//extra creases
+			this.cp.crease(3/16,7/16,0.25,7/16).mountain(45);
+			this.cp.crease(0.25,7/16,9/32,7/16).valley(45);
+			this.cp.crease(9/32,7/16,5/16,7/16).mountain(45);
+			//end extra creases
 			this.cp.crease(5/16,7/16,6/16,7/16).mountain();
 			this.cp.crease(6/16,7/16,7/16,7/16).mountain(90);
 			this.cp.crease(7/16,7/16,0.5,7/16).mountain();
-			this.cp.crease(0,15/32,1/32,15/32);
+			//this.cp.crease(0,15/32,1/32,15/32);
 			this.cp.crease(1/32,15/32,3/32,15/32).valley();
-			this.cp.crease(3/32,15/32,11/32,15/32);
+			//this.cp.crease(3/32,15/32,11/32,15/32);
 			this.cp.crease(11/32,15/32,15/32,15/32).valley();
 			this.cp.crease(15/32,15/32,0.5,15/32).valley(90);
-			this.cp.crease(0,0.5,3/8,0.5);
+			//this.cp.crease(0,0.5,3/8,0.5);
 			this.cp.crease(3/8,0.5,7/16,0.5).mountain();
-			this.cp.crease(7/16,0.5,0.5,0.5);
+			//this.cp.crease(7/16,0.5,0.5,0.5);
 			//diagonal creases
 			this.cp.crease(0,7/16,1/16,0.5).valley();
 			this.cp.crease(1/16,0.5,1/8,7/16).valley();

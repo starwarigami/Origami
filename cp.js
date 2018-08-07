@@ -242,12 +242,6 @@ var XY = (function () {
     XY.prototype.commonX = function (point, epsilon) { return epsilonEqual(this.x, point.x, epsilon); };
     XY.prototype.commonY = function (point, epsilon) { return epsilonEqual(this.y, point.y, epsilon); };
     XY.prototype.copy = function () { return new XY(this); };
-    XY.prototype.project = function (projection) {
-        if (projection === undefined) {
-            return new XY(this.x, this.y);
-        }
-        return projection.project(this);
-    };
     XY.origin = new XY(0, 0);
     XY.I = new XY(1, 0);
     XY.J = new XY(0, 1);
@@ -1212,25 +1206,6 @@ var IsoscelesTriangle = (function (_super) {
     }
     return IsoscelesTriangle;
 }(Triangle));
-var Orthographic = (function () {
-    function Orthographic(vector) {
-        this.vector = vector === undefined ? XY.K : vector;
-    }
-    Orthographic.prototype.project = function (point) {
-        return point.subtract(this.vector.scale(point.z / this.vector.z));
-    };
-    return Orthographic;
-}());
-var Perspective = (function () {
-    function Perspective(source) {
-        this.source = source;
-    }
-    Perspective.prototype.project = function (point) {
-        var vector = point.subtract(this.source);
-        return point.subtract(vector.scale(point.z / vector.z));
-    };
-    return Perspective;
-}());
 var VoronoiMolecule = (function (_super) {
     __extends(VoronoiMolecule, _super);
     function VoronoiMolecule(points, circumcenter, edgeNormal) {
@@ -2102,7 +2077,6 @@ var PlanarNode = (function (_super) {
     PlanarNode.prototype.rotate270 = function () { var p = new XY(this).rotate270(); return this.setPosition(p); };
     PlanarNode.prototype.rotate = function (angle) { var p = new XY(this).rotate(angle); return this.setPosition(p); };
     PlanarNode.prototype.reflect = function (line) { var p = new XY(this).reflect(line); return this.setPosition(p); };
-    PlanarNode.prototype.project = function (projection) { var p = new XY(this).project(projection); return this.setPosition(p); };
     PlanarNode.prototype.equivalent = function (point, epsilon) { return new XY(this).equivalent(point, epsilon); };
     PlanarNode.prototype.normalize = function () { return new XY(this).normalize(); };
     PlanarNode.prototype.dot = function (vector) { return new XY(this).dot(vector); };

@@ -507,7 +507,6 @@ var OrigamiFold = (function(){
 		this.roll = 0;
 		this.yaw = 0;
 		this.rotationMatrix = undefined;
-		this.projection = undefined;
 		this.bounds = {'origin':{'x':0,'y':0},'size':{'width':1.0, 'height':1.0}};
 		this.mouse = {
 			position: {'x':0,'y':0},
@@ -685,7 +684,6 @@ var OrigamiFold = (function(){
 			var coords = this.foldedCP.vertices_coords[nodeIndex];
 			var point = new XY(coords[0],coords[1],coords[2]);
 			if (this.rotationMatrix !== undefined) { point = point.transform(this.rotationMatrix); }
-			if (point.z != 0) { point = point.project(this.projection); }
 			return [point.x, point.y];
 	}
 	OrigamiFold.prototype.updateStyles = function () {

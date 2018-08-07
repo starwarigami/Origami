@@ -268,11 +268,6 @@ class XY{
 	commonX(point:XY, epsilon?:number):boolean{return epsilonEqual(this.x, point.x, epsilon);}
 	commonY(point:XY, epsilon?:number):boolean{return epsilonEqual(this.y, point.y, epsilon);}
 	copy():XY{ return new XY(this); }
-	project(projection?:IProjection):XY
-	{
-		if (projection === undefined) { return new XY(this.x, this.y); }
-		return projection.project(this);
-	}
 
 	static readonly origin:XY = new XY(0,0);
 	/** unit vector along the x-axis*/
@@ -787,7 +782,7 @@ abstract class PolygonType {
 		//TODO: implement this!
 		return undefined;
 	}
-	/** Calculates the bounding box made by the projection of the edges of the polygon.
+	/** Calculates the bounding box made by the edges of the polygon.
 	 * @returns {Rect} the bounding box of the polygon
 	 * @example
 	 * var bounds = polygon.minimumRect()
@@ -1201,32 +1196,3 @@ class Sector{
 // unimplemented classes. may be useful
 // subclass of Triangle
 class IsoscelesTriangle extends Triangle{ }
-
-interface IProjection {
-	project(point:XY);
-}
-
-class Orthographic implements IProjection{
-	vector:XY;
-
-	constructor(vector?:XY){
-		this.vector = vector === undefined ? XY.K : vector;
-	}
-
-	project(point:XY) {
-		return point.subtract(this.vector.scale(point.z/this.vector.z));
-	}
-}
-
-class Perspective implements IProjection{
-	source:XY;
-
-	constructor(source:XY){
-		this.source = source;
-	}
-
-	project(point:XY) {
-		var vector:XY = point.subtract(this.source);
-		return point.subtract(vector.scale(point.z/vector.z));
-	}
-}

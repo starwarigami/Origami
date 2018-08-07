@@ -135,7 +135,6 @@ class PlanarNode extends GraphNode implements XY{
 	rotate270():XY{ var p:XY = new XY(this).rotate270(); return this.setPosition(p); }
 	rotate(angle:number):XY{ var p:XY = new XY(this).rotate(angle); return this.setPosition(p); }
 	reflect(line:LineType):XY{ var p:XY = new XY(this).reflect(line); return this.setPosition(p); }
-	project(projection?:IProjection):XY{ var p:XY = new XY(this).project(projection); return this.setPosition(p); }
 	//implement the remaining XY methods by calling them on a copy, rather than reimplementing the logic
 	equivalent(point:XY, epsilon?:number):boolean { return new XY(this).equivalent(point, epsilon); }
 	normalize():XY{ return new XY(this).normalize() }
