@@ -3247,6 +3247,131 @@ var CPPolyline = (function (_super) {
     CPPolyline.prototype.crease = function () { return this.cp.creasePolyline(this); };
     return CPPolyline;
 }(Polyline));
+var CPSymmetry = (function () {
+    function CPSymmetry(cp) {
+        this.cp = cp;
+    }
+    CPSymmetry.prototype.creaseSymmetry = function (crease) {
+        return this.symmetricEdges(crease).map(function (edge) {
+            edge = this.cp.boundary.clipEdge(edge);
+            if (edge !== undefined) {
+                var newCrease = this.cp.newPlanarEdge(edge.nodes[0].x, edge.nodes[0].y, edge.nodes[1].x, edge.nodes[1].y);
+                newCrease.orientation = crease.orientation;
+                newCrease.angle = crease.angle;
+                return newCrease;
+            }
+        }, this)
+            .filter(function (sym) { return sym !== undefined; });
+    };
+    CPSymmetry.prototype.updateSymmetry = function (crease) {
+        return this.symmetricEdges(crease).map(function (edge) {
+            var c = this.cp.getCrease(edge);
+            if (c === undefined) {
+                edge = this.cp.boundary.clipEdge(edge);
+                if (edge !== undefined) {
+                    c = this.cp.getCrease(edge);
+                }
+            }
+            if (c !== undefined) {
+                c.orientation = crease.orientation;
+                c.angle = crease.angle;
+                return c;
+            }
+        }, this)
+            .filter(function (sym) { return sym !== undefined; });
+    };
+    return CPSymmetry;
+}());
+var ReflectiveSymmetry = (function (_super) {
+    __extends(ReflectiveSymmetry, _super);
+    function ReflectiveSymmetry(cp, line) {
+        var _this = _super.call(this, cp) || this;
+        _this.matrix = new Matrix().reflection(line);
+        return _this;
+    }
+    ReflectiveSymmetry.prototype.symmetricEdges = function (crease) {
+        var newEdge = this.cp.boundary.clipEdge(crease.copy().transform(this.matrix));
+        if (newEdge !== undefined) {
+            return [newEdge];
+        }
+        else {
+            return [];
+        }
+    };
+    return ReflectiveSymmetry;
+}(CPSymmetry));
+var BiReflectiveSymmetry = (function (_super) {
+    __extends(BiReflectiveSymmetry, _super);
+    function BiReflectiveSymmetry(cp, line1, line2) {
+        var _this = _super.call(this, cp) || this;
+        _this.matrices = [new Matrix().reflection(line1), new Matrix().reflection(line2)];
+        return _this;
+    }
+    BiReflectiveSymmetry.prototype.symmetricEdges = function (crease) {
+        var REFLECT_LIMIT = 666;
+        var newEdges = [];
+        var edge = crease.copy();
+        var i = 0;
+        while (i < REFLECT_LIMIT) {
+            edge = edge.transform(this.matrices[i % 2]);
+            if (edge.equivalent(crease)) {
+                break;
+            }
+            newEdges.push(edge);
+            ++i;
+        }
+        return newEdges;
+    };
+    return BiReflectiveSymmetry;
+}(CPSymmetry));
+var RotationalSymmetry = (function (_super) {
+    __extends(RotationalSymmetry, _super);
+    function RotationalSymmetry(cp, center, order) {
+        var _this = _super.call(this, cp) || this;
+        _this.matrix = new Matrix().rotation(2 * Math.PI / order, center);
+        _this.order = order;
+        return _this;
+    }
+    RotationalSymmetry.prototype.symmetricEdges = function (crease) {
+        var edge = crease.copy();
+        var newEdges = [];
+        for (var i = 1; i < this.order; ++i) {
+            newEdges.push(edge = edge.transform(this.matrix));
+        }
+        return newEdges;
+    };
+    return RotationalSymmetry;
+}(CPSymmetry));
+var TileSymmetry = (function (_super) {
+    __extends(TileSymmetry, _super);
+    function TileSymmetry(cp, dx, dy) {
+        var _this = _super.call(this, cp) || this;
+        _this.dx = dx;
+        _this.dy = dy;
+        return _this;
+    }
+    TileSymmetry.prototype.symmetricEdges = function (crease) {
+        var box = this.cp.boundary.minimumRect();
+        var i1 = Math.ceil((box.origin.x - Math.max(crease.nodes[0].x, crease.nodes[1].x)) / this.dx);
+        var i2 = Math.floor((box.origin.x + box.size.width - Math.min(crease.nodes[0].x, crease.nodes[1].x)) / this.dx);
+        var j1 = Math.ceil((box.origin.y - Math.max(crease.nodes[0].y, crease.nodes[1].y)) / this.dy);
+        var j2 = Math.floor((box.origin.y + box.size.height - Math.min(crease.nodes[0].y, crease.nodes[1].y)) / this.dy);
+        var edge = crease.copy();
+        var newEdges = [];
+        for (var i = i1; i <= i2; ++i) {
+            for (var j = j1; j <= j2; ++j) {
+                if (i == 0 && j == 0)
+                    continue;
+                var newEdge = new Edge(edge.nodes[0].translate(i * this.dx, j * this.dy), edge.nodes[1].translate(i * this.dx, j * this.dy));
+                if (newEdge !== undefined) {
+                    newEdges.push(newEdge);
+                }
+            }
+        }
+        return newEdges;
+    };
+    return TileSymmetry;
+}(CPSymmetry));
 var CreaseDirection;
 (function (CreaseDirection) {
     CreaseDirection[CreaseDirection["mark"] = 0] = "mark";
@@ -3458,11 +3583,29 @@ var Crease = (function (_super) {
         return _this;
     }
     ;
-    Crease.prototype.mark = function () { this.orientation = CreaseDirection.mark; this.angle = undefined; return this; };
-    Crease.prototype.mountain = function (angle) { this.orientation = CreaseDirection.mountain; this.angle = angle; return this; };
-    Crease.prototype.valley = function (angle) { this.orientation = CreaseDirection.valley; this.angle = angle; return this; };
-    Crease.prototype.border = function () { this.orientation = CreaseDirection.border; this.angle = undefined; return this; };
-    Crease.prototype.setOrientation = function (orientation, angle) { this.orientation = orientation; this.angle = angle; return this; };
+    Crease.prototype.mark = function () { return this.setOrientation(CreaseDirection.mark, undefined); };
+    Crease.prototype.mountain = function (angle) { return this.setOrientation(CreaseDirection.mountain, angle); };
+    Crease.prototype.valley = function (angle) { return this.setOrientation(CreaseDirection.valley, angle); };
+    Crease.prototype.border = function () { return this.setOrientation(CreaseDirection.border, undefined); };
+    Crease.prototype.setOrientation = function (orientation, angle) {
+        var changed = this.orientation != orientation || this.angle != angle;
+        this.orientation = orientation;
+        this.angle = angle;
+        if (changed && this.graph.symmetry !== undefined) {
+            this.graph.symmetry.updateSymmetry(this);
+        }
+        return this;
+    };
+    Crease.prototype.setAngle = function (angle) { return this.setOrientation(this.orientation, angle); };
+    Crease.prototype.toggle = function () {
+        if (this.orientation == CreaseDirection.valley) {
+            return this.setOrientation(CreaseDirection.mountain, this.angle);
+        }
+        if (this.orientation == CreaseDirection.mountain) {
+            return this.setOrientation(CreaseDirection.valley, this.angle);
+        }
+        return this;
+    };
     Crease.prototype.creaseToEdge = function (edge) { return this.graph.creaseEdgeToEdge(this, edge); };
     return Crease;
 }(PlanarEdge));
@@ -3501,7 +3644,7 @@ var CreasePattern = (function (_super) {
         _this.sectorType = CreaseSector;
         _this.junctionType = CreaseJunction;
         _this.boundary = new ConvexPolygon();
-        _this.symmetryLine = undefined;
+        _this.symmetry = undefined;
         _this.square();
         return _this;
     }
@@ -3511,7 +3654,7 @@ var CreasePattern = (function (_super) {
         this.faces = [];
         this.sectors = [];
         this.junctions = [];
-        this.symmetryLine = undefined;
+        this.symmetry = undefined;
         this.cleanBoundary();
         this.clean();
         return this;
@@ -3587,22 +3730,54 @@ var CreasePattern = (function (_super) {
         ]);
     };
     CreasePattern.prototype.noSymmetry = function () {
-        this.symmetryLine = undefined;
+        this.symmetry = undefined;
         return this;
     };
     CreasePattern.prototype.bookSymmetry = function () {
         var center = this.boundary.center();
-        this.symmetryLine = new Line(center, XY.J);
+        this.symmetry = new ReflectiveSymmetry(this, new Line(center, XY.J));
+        return this;
+    };
+    CreasePattern.prototype.doubleBookSymmetry = function () {
+        var center = this.boundary.center();
+        this.symmetry = new BiReflectiveSymmetry(this, new Line(center, XY.J), new Line(center, XY.I));
         return this;
     };
     CreasePattern.prototype.diagonalSymmetry = function () {
         var center = this.boundary.center();
-        this.symmetryLine = new Line(center, new XY(0.7071, 0.7071));
+        this.symmetry = new ReflectiveSymmetry(this, new Line(center, new XY(0.7071, 0.7071)));
+        return this;
+    };
+    CreasePattern.prototype.doubleDiagonalSymmetry = function () {
+        var center = this.boundary.center();
+        this.symmetry = new BiReflectiveSymmetry(this, new Line(center, new XY(0.7071, 0.7071)), new Line(center, new XY(0.7071, -0.7071)));
+        return this;
+    };
+    CreasePattern.prototype.octagonalSymmetry = function () {
+        var center = this.boundary.center();
+        this.symmetry = new BiReflectiveSymmetry(this, new Line(center, XY.J), new Line(center, new XY(0.7071, 0.7071)));
+        return this;
+    };
+    CreasePattern.prototype.rotationalSymmetry = function (order) {
+        var center = this.boundary.center();
+        this.symmetry = new RotationalSymmetry(this, center, order);
+        return this;
+    };
+    CreasePattern.prototype.tileSymmetry = function (dimX, dimY) {
+        var box = this.boundary.minimumRect();
+        this.symmetry = new TileSymmetry(this, box.size.width / dimX, box.size.height / dimY);
         return this;
     };
     CreasePattern.prototype.setSymmetryLine = function (a, b, c, d) {
         var edge = gimme1Edge(a, b, c, d);
-        this.symmetryLine = new Line(edge.nodes[0], edge.nodes[1].subtract(edge.nodes[1]));
+        this.symmetry = new ReflectiveSymmetry(this, new Line(edge.nodes[0], edge.nodes[1].subtract(edge.nodes[1])));
+        return this;
+    };
+    CreasePattern.prototype.setSymmetry = function (symmetry) {
+        if (symmetry === undefined || symmetry.cp !== this) {
+            return this.noSymmetry();
+        }
+        this.symmetry = symmetry;
         return this;
     };
     CreasePattern.prototype.point = function (a, b) { return new CPPoint(this, gimme1XY(a, b)); };
@@ -3756,20 +3931,14 @@ var CreasePattern = (function (_super) {
         return this.newEdge(a, b);
     };
     CreasePattern.prototype.newCrease = function (a_x, a_y, b_x, b_y) {
-        this.creaseSymmetry(a_x, a_y, b_x, b_y);
         var newCrease = this.newPlanarEdge(a_x, a_y, b_x, b_y);
+        if (this.symmetry !== undefined) {
+            this.symmetry.creaseSymmetry(newCrease);
+        }
         if (this.didChange !== undefined) {
             this.didChange(undefined);
         }
         return newCrease;
-    };
-    CreasePattern.prototype.creaseSymmetry = function (ax, ay, bx, by) {
-        if (this.symmetryLine === undefined) {
-            return undefined;
-        }
-        var ra = new XY(ax, ay).reflect(this.symmetryLine);
-        var rb = new XY(bx, by).reflect(this.symmetryLine);
-        return this.newPlanarEdge(ra.x, ra.y, rb.x, rb.y);
     };
     CreasePattern.prototype.crease = function (a, b, c, d) {
         if (a instanceof Line) {
@@ -4282,10 +4451,16 @@ var CreasePattern = (function (_super) {
         return copyCP;
     };
     CreasePattern.prototype.fold = function (face, removeMarks) {
-        return this.foldedCP(face, removeMarks).exportFoldFile(true);
+        var folded = this.foldedCP(face, removeMarks);
+        if (folded !== undefined) {
+            return folded.exportFoldFile(true);
+        }
     };
     CreasePattern.prototype.foldSVG = function (face, removeMarks) {
-        return this.foldedCP(face, removeMarks).exportSVG();
+        var folded = this.foldedCP(face, removeMarks);
+        if (folded !== undefined) {
+            return folded.exportSVG();
+        }
     };
     CreasePattern.prototype["export"] = function (fileType) {
         switch (fileType.toLowerCase()) {

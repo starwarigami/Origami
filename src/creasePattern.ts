@@ -114,6 +114,118 @@ class CPPolyline extends Polyline{
 	}
 	crease(){ return this.cp.creasePolyline(this); }
 }
+abstract class CPSymmetry{
+	cp:CreasePattern;
+
+	constructor(cp:CreasePattern){ this.cp = cp; }
+
+	protected abstract symmetricEdges(crease:Crease):Edge[]
+
+	creaseSymmetry(crease:Crease):Crease[]{
+		return this.symmetricEdges(crease).map(function(edge:Edge):Crease{
+				edge = this.cp.boundary.clipEdge(edge);
+				if (edge !== undefined){
+					var newCrease:Crease = <Crease>this.cp.newPlanarEdge(edge.nodes[0].x, edge.nodes[0].y, edge.nodes[1].x, edge.nodes[1].y);
+					newCrease.orientation = crease.orientation; newCrease.angle = crease.angle;
+					return newCrease;
+				}
+			}, this)
+			.filter(function(sym:Crease):boolean{ return sym !== undefined; });
+	}
+
+	updateSymmetry(crease:Crease):Crease[]{
+		return this.symmetricEdges(crease).map(function(edge:Edge):Crease{
+				var c:Crease = this.cp.getCrease(edge);
+				if(c === undefined){ edge = this.cp.boundary.clipEdge(edge); if (edge !== undefined){ c = this.cp.getCrease(edge); } }
+				if(c !== undefined){ c.orientation = crease.orientation; c.angle = crease.angle; return c; }
+			}, this)
+			.filter(function(sym:Crease):boolean{ return sym !== undefined; });
+	}
+}
+class ReflectiveSymmetry extends CPSymmetry{
+	private matrix:Matrix;
+
+	constructor(cp:CreasePattern, line:Line){
+		super(cp);
+		this.matrix = new Matrix().reflection(line);
+	}
+
+	protected symmetricEdges(crease:Crease):Edge[] {
+		var newEdge:Edge = this.cp.boundary.clipEdge(crease.copy().transform(this.matrix));
+		if (newEdge !== undefined){ return [newEdge]; }
+		else{ return []; }
+	}
+}
+class BiReflectiveSymmetry extends CPSymmetry{
+	private matrices:Matrix[];
+
+	constructor(cp:CreasePattern, line1:Line, line2:Line){
+		super(cp);
+		this.matrices = [new Matrix().reflection(line1), new Matrix().reflection(line2)];
+	}
+
+	protected symmetricEdges(crease:Crease):Edge[]{
+		const REFLECT_LIMIT = 666;
+		var newEdges:Edge[] = [];
+		var edge:Edge = crease.copy();
+
+		var i = 0;
+		while(i < REFLECT_LIMIT){
+			edge = edge.transform(this.matrices[i % 2]);
+			if (edge.equivalent(crease)){ break; }
+			newEdges.push(edge);
+			++i;
+		}
+		return newEdges;
+	}
+}
+class RotationalSymmetry extends CPSymmetry{
+	private matrix:Matrix;
+	private order:number;
+
+	constructor(cp:CreasePattern, center:XY, order:number){
+		super(cp);
+		this.matrix = new Matrix().rotation(2 * Math.PI / order, center);
+		this.order = order;
+	}
+
+	protected symmetricEdges(crease:Crease):Edge[]{
+		var edge:Edge = crease.copy();
+		var newEdges:Edge[] = [];
+		for (var i:number = 1; i < this.order; ++i){
+				newEdges.push(edge = edge.transform(this.matrix));
+		}
+		return newEdges;
+	}
+}
+class TileSymmetry extends CPSymmetry{
+	private dx:number;
+	private dy:number;
+
+	constructor(cp:CreasePattern, dx:number, dy:number){
+		super(cp);
+		this.dx = dx;
+		this.dy = dy;
+	}
+
+	symmetricEdges(crease:Crease):Edge[]{
+		var box:Rect = this.cp.boundary.minimumRect();
+		var i1:number = Math.ceil((box.origin.x - Math.max(crease.nodes[0].x, crease.nodes[1].x)) / this.dx);
+		var i2:number = Math.floor((box.origin.x + box.size.width - Math.min(crease.nodes[0].x, crease.nodes[1].x)) / this.dx);
+		var j1:number = Math.ceil((box.origin.y - Math.max(crease.nodes[0].y, crease.nodes[1].y)) / this.dy);
+		var j2:number = Math.floor((box.origin.y + box.size.height - Math.min(crease.nodes[0].y, crease.nodes[1].y)) / this.dy);
+		var edge:Edge = crease.copy();
+		var newEdges:Edge[] = [];
+		for (var i = i1; i <= i2; ++i){
+			for (var j = j1; j <= j2; ++j){
+				if (i == 0 && j == 0) continue;
+				var newEdge:Edge = new Edge(edge.nodes[0].translate(i*this.dx, j*this.dy), edge.nodes[1].translate(i*this.dx, j*this.dy));
+				if (newEdge !== undefined){ newEdges.push(newEdge); }
+			}
+		}
+		return newEdges;
+	}
+}
 // class RabbitEar{
 // 	face:CreaseFace;
 // 	edges:Crease[];
@@ -326,11 +438,23 @@ class Crease extends PlanarEdge{
 		this.newMadeBy = new MadeBy();
 		this.newMadeBy.endPoints = [node1, node2];
 	};
-	mark():Crease{ this.orientation = CreaseDirection.mark; this.angle = undefined; return this;}
-	mountain(angle?:number):Crease{ this.orientation = CreaseDirection.mountain; this.angle = angle; return this;}
-	valley(angle?:number):Crease{ this.orientation = CreaseDirection.valley; this.angle = angle; return this;}
-	border():Crease{ this.orientation = CreaseDirection.border; this.angle = undefined; return this;}
-	setOrientation(orientation:CreaseDirection, angle?:number):Crease { this.orientation = orientation; this.angle = angle; return this; }
+	mark():Crease{ return this.setOrientation(CreaseDirection.mark, undefined); }
+	mountain(angle?:number):Crease{ return this.setOrientation(CreaseDirection.mountain, angle); }
+	valley(angle?:number):Crease{ return this.setOrientation(CreaseDirection.valley, angle); }
+	border():Crease{ return this.setOrientation(CreaseDirection.border, undefined); }
+	setOrientation(orientation:CreaseDirection, angle?:number):Crease {
+		var changed:Boolean = this.orientation != orientation || this.angle != angle;
+		this.orientation = orientation;
+		this.angle = angle;
+		if (changed && this.graph.symmetry !== undefined){ this.graph.symmetry.updateSymmetry(this); }
+		return this;
+	}
+	setAngle(angle:number):Crease{ return this.setOrientation(this.orientation, angle); }
+	toggle():Crease{
+		if (this.orientation == CreaseDirection.valley){ return this.setOrientation(CreaseDirection.mountain, this.angle); }
+		if (this.orientation == CreaseDirection.mountain){ return this.setOrientation(CreaseDirection.valley, this.angle); }
+		return this;
+	}
 	// AXIOM 3
 	creaseToEdge(edge:Crease):Crease[]{return this.graph.creaseEdgeToEdge(this, edge);}
 }
@@ -366,7 +490,7 @@ class CreasePattern extends PlanarGraph{
 	// for now boundaries are limited to convex polygons. an update simply requires switching this out.
 	boundary:ConvexPolygon;
 
-	symmetryLine:Line;
+	symmetry:CPSymmetry;
 
 	// this will store the global fold sequence
 	foldSequence:FoldSequence;
@@ -383,7 +507,7 @@ class CreasePattern extends PlanarGraph{
 	constructor(){
 		super();
 		this.boundary = new ConvexPolygon();
-		this.symmetryLine = undefined;
+		this.symmetry = undefined;
 		this.square();
 	}
 
@@ -396,7 +520,7 @@ class CreasePattern extends PlanarGraph{
 		this.faces = [];
 		this.sectors = [];
 		this.junctions = [];
-		this.symmetryLine = undefined;
+		this.symmetry = undefined;
 		this.cleanBoundary();
 		this.clean();
 		return this;
@@ -468,22 +592,52 @@ class CreasePattern extends PlanarGraph{
 	// SYMMETRY
 
 	noSymmetry():CreasePattern{
-		this.symmetryLine = undefined;
+		this.symmetry = undefined;
 		return this;
 	}
 	bookSymmetry():CreasePattern{
 		var center = this.boundary.center();
-		this.symmetryLine = new Line(center, XY.J);
+		this.symmetry = new ReflectiveSymmetry(this, new Line(center, XY.J));
+		return this;
+	}
+	doubleBookSymmetry():CreasePattern{
+		var center = this.boundary.center();
+		this.symmetry = new BiReflectiveSymmetry(this, new Line(center, XY.J), new Line(center, XY.I));
 		return this;
 	}
 	diagonalSymmetry():CreasePattern{
 		var center = this.boundary.center();
-		this.symmetryLine = new Line(center, new XY(0.7071, 0.7071));
+		this.symmetry = new ReflectiveSymmetry(this, new Line(center, new XY(0.7071, 0.7071)));
+		return this;
+	}
+	doubleDiagonalSymmetry():CreasePattern{
+		var center = this.boundary.center();
+		this.symmetry = new BiReflectiveSymmetry(this, new Line(center, new XY(0.7071, 0.7071)), new Line(center, new XY(0.7071, -0.7071)));
+		return this;
+	}
+	octagonalSymmetry():CreasePattern{
+		var center = this.boundary.center();
+		this.symmetry = new BiReflectiveSymmetry(this, new Line(center, XY.J), new Line(center, new XY(0.7071, 0.7071)));
+		return this;
+	}
+	rotationalSymmetry(order:number):CreasePattern{
+		var center = this.boundary.center();
+		this.symmetry = new RotationalSymmetry(this, center, order);
+		return this;
+	}
+	tileSymmetry(dimX:number, dimY:number):CreasePattern{
+		var box:Rect = this.boundary.minimumRect();
+		this.symmetry = new TileSymmetry(this, box.size.width/dimX, box.size.height/dimY);
 		return this;
 	}
 	setSymmetryLine(a:any, b?:any, c?:any, d?:any):CreasePattern{
 		var edge = gimme1Edge(a,b,c,d);
-		this.symmetryLine = new Line(edge.nodes[0], edge.nodes[1].subtract(edge.nodes[1]));
+		this.symmetry = new ReflectiveSymmetry(this, new Line(edge.nodes[0], edge.nodes[1].subtract(edge.nodes[1])));
+		return this;
+	}
+	setSymmetry(symmetry:CPSymmetry):CreasePattern{
+		if(symmetry === undefined || symmetry.cp !== this){ return this.noSymmetry(); }
+		this.symmetry = symmetry;
 		return this;
 	}
 
@@ -777,18 +931,10 @@ class CreasePattern extends PlanarGraph{
 	private newCrease(a_x:number, a_y:number, b_x:number, b_y:number):Crease{
 		// this is a private function expecting all boundary conditions satisfied
 		// use this.crease() instead
-		this.creaseSymmetry(a_x, a_y, b_x, b_y);
 		var newCrease = <Crease>this.newPlanarEdge(a_x, a_y, b_x, b_y);
+		if(this.symmetry !== undefined){ this.symmetry.creaseSymmetry(newCrease); }
 		if(this.didChange !== undefined){ this.didChange(undefined); }
 		return newCrease;
-	}
-
-	private creaseSymmetry(ax:number, ay:number, bx:number, by:number):Crease{
-		if(this.symmetryLine === undefined){ return undefined; }
-		// todo, improve this whole situation
-		var ra = new XY(ax, ay).reflect(this.symmetryLine);
-		var rb = new XY(bx, by).reflect(this.symmetryLine);
-		return <Crease>this.newPlanarEdge(ra.x, ra.y, rb.x, rb.y);
 	}
 
 	/** Create a crease that is a line segment, and will crop if it extends beyond boundary
@@ -1396,10 +1542,12 @@ class CreasePattern extends PlanarGraph{
 		return copyCP;
 	}
 	fold(face?:PlanarFace, removeMarks?:boolean):object{
-		return this.foldedCP(face, removeMarks).exportFoldFile(true);
+		var folded:CreasePattern = this.foldedCP(face, removeMarks);
+		if (folded !== undefined){ return folded.exportFoldFile(true); }
 	}
 	foldSVG(face?:PlanarFace, removeMarks?:boolean):string{
-		return this.foldedCP(face, removeMarks).exportSVG();
+		var folded:CreasePattern = this.foldedCP(face, removeMarks);
+		if (folded !== undefined){ return folded.exportSVG(); }
 	}
 
 	///////////////////////////////////////////////////////////////
