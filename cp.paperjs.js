@@ -269,7 +269,7 @@ var OrigamiPaper = (function(){
 		if(this.show.nodes){for(var i=0;i<this.nodes.length;i++){Object.assign(this.nodes[i], this.style.node); } }
 		if(this.show.edges){for(var i=0;i<this.cp.edges.length;i++){
 			Object.assign(this.edges[i], this.styleForCrease(this.cp.edges[i].orientation));
-			if (this.cp.edges[i].angle % 180 != 0) { path.dashArray = [path.strokeWidth/2, 180/this.cp.edges[i].angle * path.strokeWidth]; }
+			if (this.cp.edges[i].angle % 180 != 0) { this.edges[i].dashArray = [this.edges[i].strokeWidth/2, 180/this.cp.edges[i].angle * this.edges[i].strokeWidth]; }
 		} }
 		if(this.show.faces){for(var i=0;i<this.faces.length;i++){Object.assign(this.faces[i],this.style.face);} }
 		if(this.show.sectors){
