@@ -3937,17 +3937,25 @@ var CreasePattern = (function (_super) {
     ;
     CreasePattern.prototype.newCreaseBetweenNodes = function (a, b) {
         this.unclean = true;
-        return this.newEdge(a, b);
-    };
-    CreasePattern.prototype.newCrease = function (a_x, a_y, b_x, b_y) {
-        var newCrease = this.newPlanarEdge(a_x, a_y, b_x, b_y);
-        if (this.symmetry !== undefined) {
-            this.symmetry.creaseSymmetry(newCrease);
-        }
+        var newCrease = this.newEdge(a, b);
+        this.creaseSymmetry(newCrease);
         if (this.didChange !== undefined) {
             this.didChange(undefined);
         }
         return newCrease;
+    };
+    CreasePattern.prototype.newCrease = function (a_x, a_y, b_x, b_y) {
+        var newCrease = this.newPlanarEdge(a_x, a_y, b_x, b_y);
+        this.creaseSymmetry(newCrease);
+        if (this.didChange !== undefined) {
+            this.didChange(undefined);
+        }
+        return newCrease;
+    };
+    CreasePattern.prototype.creaseSymmetry = function (crease) {
+        if (this.symmetry !== undefined) {
+            return this.symmetry.creaseSymmetry(crease);
+        }
     };
     CreasePattern.prototype.crease = function (a, b, c, d) {
         if (a instanceof Line) {

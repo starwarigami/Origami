@@ -925,16 +925,23 @@ class CreasePattern extends PlanarGraph{
 
 	newCreaseBetweenNodes(a:CreaseNode, b:CreaseNode):Crease{
 		this.unclean = true;
-		return <Crease>this.newEdge(a, b);
+		var newCrease = <Crease>this.newEdge(a, b);
+		this.creaseSymmetry(newCrease);
+		if(this.didChange !== undefined){ this.didChange(undefined); }
+		return newCrease;
 	}
 
 	private newCrease(a_x:number, a_y:number, b_x:number, b_y:number):Crease{
 		// this is a private function expecting all boundary conditions satisfied
 		// use this.crease() instead
 		var newCrease = <Crease>this.newPlanarEdge(a_x, a_y, b_x, b_y);
-		if(this.symmetry !== undefined){ this.symmetry.creaseSymmetry(newCrease); }
+		this.creaseSymmetry(newCrease);
 		if(this.didChange !== undefined){ this.didChange(undefined); }
 		return newCrease;
+	}
+
+	private creaseSymmetry(crease:Crease):Crease[]{
+		if(this.symmetry !== undefined){ return this.symmetry.creaseSymmetry(crease); }
 	}
 
 	/** Create a crease that is a line segment, and will crop if it extends beyond boundary
