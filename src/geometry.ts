@@ -1164,7 +1164,16 @@ class Sector{
 	}
 	bisect():Ray{
 		var vectors = this.vectors();
-		return new Ray(this.origin, vectors[1].bisect(vectors[0])[0]);
+		var angles = vectors.map(function (el) { return Math.atan2(el.y, el.x); });
+		while (angles[0] < 0) {
+			angles[0] += Math.PI * 2;
+		}
+		while (angles[1] < 0) {
+			angles[1] += Math.PI * 2;
+		}
+		var interior = counterClockwiseInteriorAngleRadians(angles[0], angles[1]);
+		var bisected = angles[0] + interior * 0.5;
+		return new Ray(new XY(this.origin.x, this.origin.y), new XY(Math.cos(bisected), Math.sin(bisected)));
 	}
 	subsect(divisions:number):Ray[]{
 		if(divisions == undefined || divisions < 2){ throw "subsect() requires number parameter > 1"; }
