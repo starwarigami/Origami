@@ -27,6 +27,7 @@ var OrigamiPaper = (function(){
 		this.bounds = undefined;  // undefined defaults to size of CP itself
 		this.style = this.defaultStyleTemplate();
 		this.backgroundLayer = new this.scope.Layer();
+		this.gridLayer = new this.scope.Layer();
 		this.faceLayer = new this.scope.Layer();
 		this.junctionLayer = new this.scope.Layer();
 		this.sectorLayer = new this.scope.Layer();
@@ -47,6 +48,8 @@ var OrigamiPaper = (function(){
 			faces:false,
 			junctions:false,
 			sectors:false,
+			gridPoints:false,
+			gridLines:false
 		}
 		// user select and move
 		this.touchPoints = [];
@@ -160,8 +163,10 @@ var OrigamiPaper = (function(){
 		this.edges = [];
 		this.faces = [];
 		this.sectors = [];
+		this.gridPoints = [];
+		this.gridLines = [];
 
-		[this.backgroundLayer, this.boundaryLayer, this.nodeLayer, this.edgeLayer, this.faceLayer, this.sectorLayer].forEach(function(el){el.removeChildren();},this);
+		[this.backgroundLayer, this.boundaryLayer, this.nodeLayer, this.edgeLayer, this.faceLayer, this.sectorLayer, this.gridLayer].forEach(function(el){el.removeChildren();},this);
 
 		// draw paper
 		if(this.show.boundary && this.cp.boundary !== undefined){
@@ -243,6 +248,25 @@ var OrigamiPaper = (function(){
 				}
 			}
 		}
+		if ((this.show.gridLines || this.show.gridPoints)){
+			this.gridLayer.activate();
+			var box = this.cp.boundary.minimumRect();
+			if (this.show.gridPoints){
+				for(var i = 0; i < this.cp.gridPoints.length; i++){
+					var circle = new this.scope.Shape.Circle({ center: [this.cp.gridPoints[i].x, this.cp.gridPoints[i].y] });
+					Object.assign(circle, this.style.gridPoint);
+					this.gridPoints.push(circle);
+				}
+			}
+			if (this.show.gridLines){
+				for(var i = 0; i < this.cp.gridLines.length; i++){
+					var points = this.cp.gridLines[i].nodes.map(function(el){ return [el.x, el.y]; });
+					var path = new this.scope.Path({segments: points, closed: false });
+					Object.assign(path, this.style.gridLine);
+					this.gridLines.push(path);
+				}
+			}
+		}
 		this.buildViewMatrix();
 	}
 	OrigamiPaper.prototype.update = function () {
@@ -272,7 +296,7 @@ var OrigamiPaper = (function(){
 			if (this.cp.edges[i].angle % 180 != 0) { this.edges[i].dashArray = [this.edges[i].strokeWidth/2, 180/this.cp.edges[i].angle * this.edges[i].strokeWidth]; }
 		} }
 		if(this.show.faces){for(var i=0;i<this.faces.length;i++){Object.assign(this.faces[i],this.style.face);} }
-		if(this.show.sectors){
+		if(this.show.sectors && this.sectors.length){
 			for(var j = 0; j < this.cp.junctions.length; j++){
 				for(var s = 0; s < this.cp.junctions[j].sectors.length; s++){
 					var sector = this.sectors[ this.cp.junctions[j].sectors[s].index ];
@@ -285,6 +309,8 @@ var OrigamiPaper = (function(){
 			Object.assign(this.boundaryLayer.children[i], this.style.boundary);
 			// Object.assign(this.boundaryLayer.children[i], this.styleForCrease(CreaseDirection.border));
 		} }
+		if(this.show.gridPoints){for(var i=0;i<this.gridPoints.length;i++){Object.assign(this.gridPoints[i],this.style.gridPoint);} }
+		if(this.show.gridLines){for(var i=0;i<this.gridLines.length;i++){Object.assign(this.gridLines[i],this.style.gridLine);} }
 	};
 	OrigamiPaper.prototype.buildViewMatrix = function(){
 		paper = this.scope;
@@ -363,6 +389,9 @@ var OrigamiPaper = (function(){
 			if(el.dashArray != undefined){ el.dashArray = [weight*1.5, weight*2]; }
 		},this);
 		this.style.mark.strokeWidth = weight*0.6666666;
+		this.style.gridPoint.radius = weight*0.2;
+		this.style.gridLine.strokeWidth = weight*0.2;
+		this.style.gridLine.dashArray = [weight*0.2, weight*0.5];
 		this.updateStyles();
 		return this;
 	};
@@ -443,7 +472,17 @@ var OrigamiPaper = (function(){
 				},
 				edge: {strokeColor: { hue:0, saturation:0.8, brightness:1 } },
 				face: { fillColor: { hue:0, saturation:0.8, brightness:1 } }
-			}
+			},
+			gridPoint: {
+				radius: scale*0.002,
+				fillColor: { gray:0.0, alpha:0.5 }
+			},
+			gridLine: {
+				strokeColor: { gray:0.666, alpha:0.5 },
+				dashArray: [scale*0.001, scale*0.005],
+				strokeWidth: scale * 0.002,
+				strokeCap : 'round'
+			},
 		}
 	};
 	OrigamiPaper.prototype.styleForCrease = function(orientation){
@@ -864,6 +903,7 @@ var PaperJSLoader = (function(){
 									 childrenArray[i].segments[next].point.x,
 									 childrenArray[i].segments[next].point.y);
 						var color = childrenArray[i].strokeColor;
+						//TODO: somehow determine fold angle as well as orientation
 						if(color !== undefined && crease !== undefined){
 							if(color.red > color.blue){crease.mountain();}
 							if(color.red < color.blue){crease.valley();}
