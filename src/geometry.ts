@@ -629,9 +629,9 @@ class Polyline{
 abstract class PolygonType {
 	abstract vertices():XY[]
 	coincident(point:XY, inside?:boolean, onEdge?:boolean, epsilon?:number):boolean {
-		if (inside == undefined) { inside = true; }
-		if (onEdge == undefined) { onEdge = true; }
-		if (epsilon == undefined) { epsilon = 0; }
+		if(inside == undefined) { inside = true; }
+		if(onEdge == undefined) { onEdge = true; }
+		if(epsilon == undefined) { epsilon = 0; }
 
 		var useEdges:boolean = this.hasOwnProperty('edges');
 		var array:any[] = undefined;
@@ -839,12 +839,30 @@ class Rect extends PolygonType{
 	// implements PolygonType
 	vertices():XY[]{ return [this.origin.copy(), new XY(this.origin.x + this.size.width, this.origin.y), new XY(this.origin.x + this.size.width, this.origin.y + this.size.height), new XY(this.origin.x, this.origin.y + this.size.height)];	}
 	//override for performance benefit
-	contains(point:XY, epsilon?:number):boolean{
-		if(epsilon == undefined){ epsilon = 0; }
-		return point.x > this.origin.x - epsilon &&
-		       point.y > this.origin.y - epsilon &&
-		       point.x < this.origin.x + this.size.width + epsilon &&
-		       point.y < this.origin.y + this.size.height + epsilon;
+	coincident(point:XY, inside?:boolean, onEdge?:boolean, epsilon?:number):boolean {
+		if(inside == undefined) { inside = true; }
+		if(onEdge == undefined) { onEdge = true; }
+		if(epsilon == undefined) { epsilon = 0; }
+		if(inside && onEdge){
+			return point.x >= this.origin.x - epsilon &&
+			       point.y >= this.origin.y - epsilon &&
+			       point.x <= this.origin.x + this.size.width + epsilon &&
+			       point.y <= this.origin.y + this.size.height + epsilon;
+		}
+		else if(inside){
+			return point.x > this.origin.x - epsilon &&
+			       point.y > this.origin.y - epsilon &&
+			       point.x < this.origin.x + this.size.width + epsilon &&
+			       point.y < this.origin.y + this.size.height + epsilon;
+		}
+		else if(onEdge){
+			return point.x >= this.origin.x - epsilon && point.x <= this.origin.x + epsilon &&
+			       point.y >= this.origin.y - epsilon && point.y <= this.origin.y + epsilon &&
+			       point.x <= this.origin.x + this.size.width + epsilon && point.x >= this.origin.x + this.size.width - epsilon &&
+			       point.y <= this.origin.y + this.size.height + epsilon && point.y >= this.origin.y + this.size.height - epsilon;
+
+		}
+		return false;
 	}
 	square():boolean{ return epsilonEqual(this.size.width, this.size.height); }
 }
@@ -1069,7 +1087,7 @@ class ConvexPolygon extends PolygonType{
 		var radius = Math.cos(halfwedge) * scale;
 		var points = [];
 		for(var i = 0; i < sides; i++){
-			var a = -2 * Math.PI * i / sides + halfwedge;
+			var a = 2 * Math.PI * i / sides + halfwedge + Math.PI;
 			var x = origin.x + cleanNumber(radius * Math.sin(a), 14);
 			var y = origin.y + cleanNumber(radius * Math.cos(a), 14);
 			points.push( new XY(x, y) ); // align point along Y

@@ -28,6 +28,7 @@ var OrigamiPaper = (function(){
 		this.style = this.defaultStyleTemplate();
 		this.backgroundLayer = new this.scope.Layer();
 		this.gridLayer = new this.scope.Layer();
+		this.symmetryLayer = new this.scope.Layer();
 		this.faceLayer = new this.scope.Layer();
 		this.junctionLayer = new this.scope.Layer();
 		this.sectorLayer = new this.scope.Layer();
@@ -49,7 +50,8 @@ var OrigamiPaper = (function(){
 			junctions:false,
 			sectors:false,
 			gridPoints:false,
-			gridLines:false
+			gridLines:false,
+			symmetry:false
 		}
 		// user select and move
 		this.touchPoints = [];
@@ -166,7 +168,7 @@ var OrigamiPaper = (function(){
 		this.gridPoints = [];
 		this.gridLines = [];
 
-		[this.backgroundLayer, this.boundaryLayer, this.nodeLayer, this.edgeLayer, this.faceLayer, this.sectorLayer, this.gridLayer].forEach(function(el){el.removeChildren();},this);
+		[this.backgroundLayer, this.boundaryLayer, this.nodeLayer, this.edgeLayer, this.faceLayer, this.sectorLayer, this.gridLayer, this.symmetryLayer].forEach(function(el){el.removeChildren();},this);
 
 		// draw paper
 		if(this.show.boundary && this.cp.boundary !== undefined){
@@ -248,23 +250,74 @@ var OrigamiPaper = (function(){
 				}
 			}
 		}
-		if ((this.show.gridLines || this.show.gridPoints)){
+		if((this.show.gridLines || this.show.gridPoints) && this.cp.grid !== undefined){
 			this.gridLayer.activate();
 			var box = this.cp.boundary.minimumRect();
 			if (this.show.gridPoints){
-				for(var i = 0; i < this.cp.gridPoints.length; i++){
-					var circle = new this.scope.Shape.Circle({ center: [this.cp.gridPoints[i].x, this.cp.gridPoints[i].y] });
+				for(var i = 0; i < this.cp.grid.gridPoints.length; i++){
+					var circle = new this.scope.Shape.Circle({ center: [this.cp.grid.gridPoints[i].x, this.cp.grid.gridPoints[i].y] });
 					Object.assign(circle, this.style.gridPoint);
 					this.gridPoints.push(circle);
 				}
 			}
-			if (this.show.gridLines){
-				for(var i = 0; i < this.cp.gridLines.length; i++){
-					var points = this.cp.gridLines[i].nodes.map(function(el){ return [el.x, el.y]; });
+			if(this.show.gridLines){
+				for(var i = 0; i < this.cp.grid.gridLines.length; i++){
+					var points = this.cp.grid.gridLines[i].nodes.map(function(el){ return [el.x, el.y]; });
 					var path = new this.scope.Path({segments: points, closed: false });
 					Object.assign(path, this.style.gridLine);
 					this.gridLines.push(path);
 				}
+			}
+		}
+		if(this.show.symmetry && this.cp.symmetry != undefined){
+			this.symmetryLayer.activate();
+			var s = this.cp.symmetry.serialize();
+			switch(s.symmetryType){
+				case 'reflective':
+				case 'book':
+				case 'diagonal':
+					var points = this.cp.boundary.clipLine(this.cp.symmetry.line).nodes.map(function(el){ return [el.x, el.y]; });
+					var path = new this.scope.Path({segments: points, closed: false });
+					Object.assign(path, this.style.symmetry.line);
+					break;
+				case 'bireflective':
+				case 'double-book':
+				case 'double-diagonal':
+				case 'octagonal':
+					for(var i = 0; i < this.cp.symmetry.lines.length; i++){
+						var points = this.cp.boundary.clipLine(this.cp.symmetry.lines[i]).nodes.map(function(el){ return [el.x, el.y]; });
+						var path = new this.scope.Path({segments: points, closed: false });
+						Object.assign(path, this.style.symmetry.line);
+					}
+					break;
+				case 'rotational':
+					var center = this.cp.symmetry.center !== undefined ? this.cp.symmetry.center : this.cp.boundary.centroid();
+					var circle = new this.scope.Shape.Circle({ center: [center.x, center.y] });
+					Object.assign(circle, this.style.symmetry.center);
+					for(var i = 0; i < this.cp.symmetry.order; i++){
+						var r = new Ray(center, XY.J.rotate(i*2*Math.PI/this.cp.symmetry.order));
+						var points = this.cp.boundary.clipRay(r).nodes.map(function(el){ return [el.x, el.y]; });
+						var path = new this.scope.Path({segments: points, closed: false });
+						Object.assign(path, this.style.symmetry.line);
+					}
+					break;
+				case 'tile':
+					var box = this.cp.bounds();
+					var dimX = this.cp.symmetry.dimX;
+					var dimY = this.cp.symmetry.dimY !== undefined ? this.cp.symmetry.dimY : this.cp.symmetry.dimX;
+					for (var i = 1; i < dimX; ++i){
+						var line = new Line(box.origin.add(i*box.size.width/dimX, 0), XY.J);
+						var points = this.cp.boundary.clipLine(line).nodes.map(function(el){ return [el.x, el.y]; });
+						var path = new this.scope.Path({segments: points, closed: false });
+						Object.assign(path, this.style.symmetry.line);
+					}
+					for (var j = 1; j < dimY; ++j){
+						var line = new Line(box.origin.add(0, j*box.size.height/dimY), XY.I);
+						var points = this.cp.boundary.clipLine(line).nodes.map(function(el){ return [el.x, el.y]; });
+						var path = new this.scope.Path({segments: points, closed: false });
+						Object.assign(path, this.style.symmetry.line);
+					}
+					break;
 			}
 		}
 		this.buildViewMatrix();
@@ -483,6 +536,18 @@ var OrigamiPaper = (function(){
 				strokeWidth: scale * 0.002,
 				strokeCap : 'round'
 			},
+			symmetry: {
+				line: {
+					strokeColor: {hue:120, saturation:.53, brightness:.72, alpha:0.5},//this.styles.lang.green
+					dashArray: [scale*0.001, scale*0.005],
+					strokeWidth: scale * 0.005,
+					strokeCap : 'round'
+				},
+				center: {
+					radius: scale*0.008,
+					fillColor: {hue:120, saturation:.53, brightness:.72, alpha:0.5}//this.styles.lang.green
+				}
+			}
 		}
 	};
 	OrigamiPaper.prototype.styleForCrease = function(orientation){

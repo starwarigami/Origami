@@ -824,14 +824,35 @@ var Rect = (function (_super) {
         return _this;
     }
     Rect.prototype.vertices = function () { return [this.origin.copy(), new XY(this.origin.x + this.size.width, this.origin.y), new XY(this.origin.x + this.size.width, this.origin.y + this.size.height), new XY(this.origin.x, this.origin.y + this.size.height)]; };
-    Rect.prototype.contains = function (point, epsilon) {
+    Rect.prototype.coincident = function (point, inside, onEdge, epsilon) {
+        if (inside == undefined) {
+            inside = true;
+        }
+        if (onEdge == undefined) {
+            onEdge = true;
+        }
         if (epsilon == undefined) {
             epsilon = 0;
         }
-        return point.x > this.origin.x - epsilon &&
-            point.y > this.origin.y - epsilon &&
-            point.x < this.origin.x + this.size.width + epsilon &&
-            point.y < this.origin.y + this.size.height + epsilon;
+        if (inside && onEdge) {
+            return point.x >= this.origin.x - epsilon &&
+                point.y >= this.origin.y - epsilon &&
+                point.x <= this.origin.x + this.size.width + epsilon &&
+                point.y <= this.origin.y + this.size.height + epsilon;
+        }
+        else if (inside) {
+            return point.x > this.origin.x - epsilon &&
+                point.y > this.origin.y - epsilon &&
+                point.x < this.origin.x + this.size.width + epsilon &&
+                point.y < this.origin.y + this.size.height + epsilon;
+        }
+        else if (onEdge) {
+            return point.x >= this.origin.x - epsilon && point.x <= this.origin.x + epsilon &&
+                point.y >= this.origin.y - epsilon && point.y <= this.origin.y + epsilon &&
+                point.x <= this.origin.x + this.size.width + epsilon && point.x >= this.origin.x + this.size.width - epsilon &&
+                point.y <= this.origin.y + this.size.height + epsilon && point.y >= this.origin.y + this.size.height - epsilon;
+        }
+        return false;
     };
     Rect.prototype.square = function () { return epsilonEqual(this.size.width, this.size.height); };
     return Rect;
@@ -1080,7 +1101,7 @@ var ConvexPolygon = (function (_super) {
         var radius = Math.cos(halfwedge) * scale;
         var points = [];
         for (var i = 0; i < sides; i++) {
-            var a = -2 * Math.PI * i / sides + halfwedge;
+            var a = 2 * Math.PI * i / sides + halfwedge + Math.PI;
             var x = origin.x + cleanNumber(radius * Math.sin(a), 14);
             var y = origin.y + cleanNumber(radius * Math.cos(a), 14);
             points.push(new XY(x, y));
@@ -2650,7 +2671,6 @@ var PlanarGraph = (function (_super) {
             return el.contains(point);
         }, this).shift() : undefined;
         return {
-            'point': point,
             'node': node,
             'edge': edge,
             'face': face,
@@ -3259,10 +3279,8 @@ var CPPolyline = (function (_super) {
 }(Polyline));
 var CPGridPoint = (function (_super) {
     __extends(CPGridPoint, _super);
-    function CPGridPoint(cp, i, j) {
-        var _this = this;
-        var box = cp.bounds();
-        _this = _super.call(this, box.origin.add(i * box.size.width / cp.gridDimensions.dimX, j * box.size.height / cp.gridDimensions.dimY)) || this;
+    function CPGridPoint(cp, point, i, j) {
+        var _this = _super.call(this, point) || this;
         _this.cp = cp;
         _this.i = i;
         _this.j = j;
@@ -3272,18 +3290,309 @@ var CPGridPoint = (function (_super) {
 }(XY));
 var CPGridLine = (function (_super) {
     __extends(CPGridLine, _super);
-    function CPGridLine(cp, i, j, v) {
-        var _this = this;
-        var box = cp.bounds();
-        var line = new Line(box.origin.add(i * box.size.width / cp.gridDimensions.dimX, j * box.size.height / cp.gridDimensions.dimY), v);
-        _this = _super.call(this, cp.boundary.clipLine(line)) || this;
+    function CPGridLine(cp, line) {
+        var _this = _super.call(this, line) || this;
         _this.cp = cp;
-        _this.i = i;
-        _this.j = j;
         return _this;
     }
     return CPGridLine;
 }(Edge));
+var CPGrid = (function () {
+    function CPGrid(cp, vector1, vector2, origin, triangulated) {
+        if (vector2 === undefined) {
+            vector2 = vector1.rotate90();
+        }
+        if (origin === undefined) {
+            origin = XY.origin;
+        }
+        if (triangulated === undefined) {
+            triangulated = false;
+        }
+        this.cp = cp;
+        this.vectors = [vector1.copy(), vector2.copy()];
+        this.origin = origin.copy();
+        this.triangulated = triangulated;
+        if (triangulated) {
+            var vector3 = vector2.subtract(vector1);
+        }
+        var gridPoints = [];
+        var gridLines = [];
+        var box = cp.bounds();
+        var mini = 0;
+        var maxi = 0;
+        var minj = 0;
+        var maxj = 0;
+        var visited = {};
+        function iterate(i, j) {
+            var key = 'I' + (i < 0 ? '_' + Math.abs(i) : i) + 'J' + (j < 0 ? '_' + Math.abs(j) : j);
+            if (visited[key])
+                return;
+            visited[key] = true;
+            var pij = origin.add(vector1.scale(i)).add(vector2.scale(j));
+            if (box.coincident(pij, true, true, EPSILON_HIGH)) {
+                var point = new CPGridPoint(cp, pij, i, j);
+                point.index = gridPoints.length;
+                gridPoints.push(point);
+                if (i < mini) {
+                    mini = i;
+                }
+                else if (i > maxi) {
+                    maxi = i;
+                }
+                if (j < minj) {
+                    minj = j;
+                }
+                else if (j > maxj) {
+                    maxj = j;
+                }
+                iterate(i - 1, j);
+                iterate(i + 1, j);
+                iterate(i, j - 1);
+                iterate(i, j + 1);
+            }
+        }
+        iterate(0, 0);
+        for (var i = mini; i <= maxi; ++i) {
+            var e = cp.boundary.clipLine(new Line(this.origin.add(vector1.scale(i)), vector2));
+            if (e !== undefined) {
+                var line = new CPGridLine(cp, e);
+                line.index = gridLines.length;
+                gridLines.push(line);
+            }
+            if (triangulated) {
+                e = cp.boundary.clipLine(new Line(this.origin.add(vector1.scale(i)), vector3));
+                if (e !== undefined) {
+                    line = new CPGridLine(cp, e);
+                    line.index = gridLines.length;
+                    gridLines.push(line);
+                }
+            }
+        }
+        for (var j = minj; j <= maxj; ++j) {
+            e = cp.boundary.clipLine(new Line(this.origin.add(vector2.scale(j)), vector1));
+            if (e !== undefined) {
+                line = new CPGridLine(cp, e);
+                line.index = gridLines.length;
+                gridLines.push(line);
+            }
+            if (triangulated && j > minj) {
+                e = cp.boundary.clipLine(new Line(this.origin.add(vector1.scale(maxi)).add(vector2.scale(j)), vector3));
+                if (e !== undefined) {
+                    line = new CPGridLine(cp, e);
+                    line.index = gridLines.length;
+                    gridLines.push(line);
+                }
+            }
+        }
+        this.gridPoints = gridPoints;
+        this.gridLines = gridLines;
+    }
+    CPGrid.prototype.nearest = function (a, b) {
+        var point = gimme1XY(a, b);
+        var sortedPoints = this.gridPoints
+            .map(function (p) { return { 'p': p, 'distance': point.distanceTo(p) }; }, this)
+            .sort(function (a, b) { return a.distance - b.distance; });
+        var gridPoint = sortedPoints[0] !== undefined ? sortedPoints[0].p : undefined;
+        var sortedLines = this.gridLines
+            .map(function (l) { return { l: l, distance: l.nearestPoint(point).distanceTo(point) }; }, this)
+            .sort(function (a, b) { return a.distance - b.distance; });
+        var gridLine = sortedLines[0] !== undefined ? sortedLines[0].l : undefined;
+        return { 'gridPoint': gridPoint, 'gridLine': gridLine };
+    };
+    CPGrid.prototype.serialize = function () {
+        return { gridType: "grid", args: [this.vectors[0].x, this.vectors[0].y, this.vectors[1].x, this.vectors[1].y, this.origin.x, this.origin.y, this.triangulated ? 1 : 0] };
+    };
+    CPGrid.deserialize = function (cp, g) {
+        if (g === undefined)
+            return undefined;
+        switch (g.gridType) {
+            case "rectangular":
+                return new RectangularGrid(cp, g.args[0], g.args[1]);
+            case "square":
+                return new SquareGrid(cp, g.args[0]);
+            case "parallelogram":
+                return new ParallelogramGrid(cp, g.args[0], g.args[1], g.args[2]);
+            case "rhombic":
+                return new RhombicGrid(cp, g.args[0], g.args[1]);
+            case "diagonal":
+                return new DiagonalGrid(cp, g.args[0]);
+            case "triangular":
+                return new TriangularGrid(cp, g.args[0], g.args[1], g.args[2]);
+            case "isometric":
+                return new IsometricGrid(cp, g.args[0]);
+            case "isosceles":
+                return new IsoscelesGrid(cp, g.args[0], g.args[1]);
+            case "grid":
+                return new CPGrid(cp, new XY(g.args[0], g.args[1]), new XY(g.args[2], g.args[3]), new XY(g.args[4], g.args[5]), g.args[6] != 0);
+            default:
+                return undefined;
+        }
+    };
+    return CPGrid;
+}());
+var RectangularGrid = (function (_super) {
+    __extends(RectangularGrid, _super);
+    function RectangularGrid(cp, dimX, dimY) {
+        var _this = this;
+        var edges = cp.boundary.edges;
+        var dx = edges[0].length() / dimX;
+        var dy = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+        var origin = edges[0].nodes[0];
+        var versor = edges[0].vector().normalize();
+        var vector1 = versor.scale(dx);
+        var vector2 = versor.rotate90().scale(dy);
+        _this = _super.call(this, cp, vector1, vector2, origin) || this;
+        _this.dimX = dimX;
+        _this.dimY = dimY;
+        return _this;
+    }
+    RectangularGrid.prototype.serialize = function () {
+        return { gridType: "rectangular", args: [this.dimX, this.dimY] };
+    };
+    return RectangularGrid;
+}(CPGrid));
+var SquareGrid = (function (_super) {
+    __extends(SquareGrid, _super);
+    function SquareGrid(cp, dimX) {
+        var _this = this;
+        var edges = cp.boundary.edges;
+        var dx = edges[0].length() / dimX;
+        var origin = edges[0].nodes[0];
+        var vector = edges[0].vector().normalize().scale(dx);
+        _this = _super.call(this, cp, vector, vector.rotate90(), origin) || this;
+        _this.dimX = dimX;
+        return _this;
+    }
+    SquareGrid.prototype.serialize = function () {
+        return { gridType: "square", args: [this.dimX] };
+    };
+    return SquareGrid;
+}(CPGrid));
+var RhombicGrid = (function (_super) {
+    __extends(RhombicGrid, _super);
+    function RhombicGrid(cp, dimX, dimY) {
+        var _this = this;
+        var edges = cp.boundary.edges;
+        var dx = edges[0].length() / dimX;
+        var dy = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+        var origin = edges[0].nodes[0];
+        var versor = edges[0].vector().normalize();
+        var vector1 = versor.rotate90().scale(dy / 2).add(versor.scale(dx / 2));
+        var vector2 = versor.rotate90().scale(dy / 2).subtract(versor.scale(dx / 2));
+        _this = _super.call(this, cp, vector1, vector2, origin) || this;
+        _this.dimX = dimX;
+        _this.dimY = dimY;
+        return _this;
+    }
+    RhombicGrid.prototype.serialize = function () {
+        return { gridType: "rhombic", args: [this.dimX, this.dimY] };
+    };
+    return RhombicGrid;
+}(CPGrid));
+var DiagonalGrid = (function (_super) {
+    __extends(DiagonalGrid, _super);
+    function DiagonalGrid(cp, dimX) {
+        var _this = this;
+        var edges = cp.boundary.edges;
+        var dx = edges[0].length() / dimX;
+        var origin = edges[0].nodes[0];
+        var vector = edges[0].vector().normalize().scale(dx / 2);
+        vector = vector.add(vector.rotate90());
+        console.log(vector);
+        _this = _super.call(this, cp, vector, vector.rotate90(), origin) || this;
+        _this.dimX = dimX;
+        return _this;
+    }
+    DiagonalGrid.prototype.serialize = function () {
+        return { gridType: "diagonal", args: [this.dimX] };
+    };
+    return DiagonalGrid;
+}(CPGrid));
+var ParallelogramGrid = (function (_super) {
+    __extends(ParallelogramGrid, _super);
+    function ParallelogramGrid(cp, dimX, dimY, angle) {
+        var _this = this;
+        var edges = cp.boundary.edges;
+        var dx = edges[0].length() / dimX;
+        var dy = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+        var angleRadians = angle * Math.PI / 180;
+        var origin = edges[0].nodes[0];
+        var versor = edges[0].vector().normalize();
+        var vector1 = versor.scale(dx);
+        var vector2 = versor.rotate(-angleRadians).scale(dy / Math.sin(angleRadians));
+        _this = _super.call(this, cp, vector1, vector2, origin) || this;
+        _this.dimX = dimX;
+        _this.dimY = dimY;
+        _this.angle = angle;
+        return _this;
+    }
+    ParallelogramGrid.prototype.serialize = function () {
+        return { gridType: "parallelogram", args: [this.dimX, this.dimY, this.angle] };
+    };
+    return ParallelogramGrid;
+}(CPGrid));
+var TriangularGrid = (function (_super) {
+    __extends(TriangularGrid, _super);
+    function TriangularGrid(cp, dimX, dimY, angle) {
+        var _this = this;
+        var edges = cp.boundary.edges;
+        var dx = edges[0].length() / dimX;
+        var dy = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+        var angleRadians = angle * Math.PI / 180;
+        var origin = edges[0].nodes[0];
+        var versor = edges[0].vector().normalize();
+        var vector1 = versor.scale(dx);
+        var vector2 = versor.rotate(-angleRadians).scale(dy / Math.sin(angleRadians));
+        _this = _super.call(this, cp, vector1, vector2, origin, true) || this;
+        _this.dimX = dimX;
+        _this.dimY = dimY;
+        _this.angle = angle;
+        return _this;
+    }
+    TriangularGrid.prototype.serialize = function () {
+        return { gridType: "triangular", args: [this.dimX, this.dimY, this.angle] };
+    };
+    return TriangularGrid;
+}(CPGrid));
+var IsometricGrid = (function (_super) {
+    __extends(IsometricGrid, _super);
+    function IsometricGrid(cp, dimX) {
+        var _this = this;
+        var edges = cp.boundary.edges;
+        var dx = edges[0].length() / dimX;
+        var origin = edges[0].nodes[0];
+        var vector1 = edges[0].vector().normalize().scale(dx);
+        var vector2 = vector1.rotate(-Math.PI / 3);
+        _this = _super.call(this, cp, vector1, vector2, origin, true) || this;
+        _this.dimX = dimX;
+        return _this;
+    }
+    IsometricGrid.prototype.serialize = function () {
+        return { gridType: "isometric", args: [this.dimX] };
+    };
+    return IsometricGrid;
+}(CPGrid));
+var IsoscelesGrid = (function (_super) {
+    __extends(IsoscelesGrid, _super);
+    function IsoscelesGrid(cp, dimX, dimY) {
+        var _this = this;
+        var edges = cp.boundary.edges;
+        var dx = edges[0].length() / dimX;
+        var dy = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+        var origin = edges[0].nodes[0];
+        var versor = edges[0].vector().normalize();
+        var vector1 = versor.scale(dx);
+        var vector2 = versor.rotate90().scale(dy).add(versor.scale(dx / 2));
+        _this = _super.call(this, cp, vector1, vector2, origin, true) || this;
+        _this.dimX = dimX;
+        _this.dimY = dimY;
+        return _this;
+    }
+    IsoscelesGrid.prototype.serialize = function () {
+        return { gridType: "isosceles", args: [this.dimX, this.dimY] };
+    };
+    return IsoscelesGrid;
+}(CPGrid));
 var CPSymmetry = (function () {
     function CPSymmetry(cp) {
         this.cp = cp;
@@ -3321,14 +3630,34 @@ var CPSymmetry = (function () {
         if (s === undefined)
             return undefined;
         switch (s.symmetryType) {
-            case "ReflectiveSymmetry":
+            case "book":
+                return new BookSymmetry(cp);
+            case "diagonal":
+                return new DiagonalSymmetry(cp);
+            case "reflective":
                 return new ReflectiveSymmetry(cp, new Line(s.args[0], s.args[1], s.args[2], s.args[3]));
-            case "BiReflectiveSymmetry":
+            case "double-book":
+                return new DoubleBookSymmetry(cp);
+            case "double-diagonal":
+                return new DoubleDiagonalSymmetry(cp);
+            case "octagonal":
+                return new OctagonalSymmetry(cp);
+            case "bireflective":
                 return new BiReflectiveSymmetry(cp, new Line(s.args[0], s.args[1], s.args[2], s.args[3]), new Line(s.args[4], s.args[4], s.args[6], s.args[7]));
-            case "RotationalSymmetry":
-                return new RotationalSymmetry(cp, new XY(s.args[0], s.args[1]), s.args[2]);
-            case "TileSymmetry":
-                return new TileSymmetry(cp, s.args[0], s.args[1]);
+            case "rotational":
+                if (s.args.length == 1) {
+                    return new RotationalSymmetry(cp, s.args[0]);
+                }
+                else {
+                    return new RotationalSymmetry(cp, s.args[0], new XY(s.args[1], s.args[2]));
+                }
+            case "tile":
+                if (s.args.length == 1) {
+                    return new TileSymmetry(cp, s.args[0]);
+                }
+                else {
+                    return new TileSymmetry(cp, s.args[0], s.args[1]);
+                }
             default:
                 return undefined;
         }
@@ -3353,10 +3682,32 @@ var ReflectiveSymmetry = (function (_super) {
         }
     };
     ReflectiveSymmetry.prototype.serialize = function () {
-        return { symmetryType: "ReflectiveSymmetry", args: [this.line.point.x, this.line.point.y, this.line.direction.x, this.line.direction.y] };
+        return { symmetryType: "reflective", args: [this.line.point.x, this.line.point.y, this.line.direction.x, this.line.direction.y] };
     };
     return ReflectiveSymmetry;
 }(CPSymmetry));
+var BookSymmetry = (function (_super) {
+    __extends(BookSymmetry, _super);
+    function BookSymmetry(cp) {
+        var _this = this;
+        var center = cp.boundary.center();
+        _this = _super.call(this, cp, new Line(center, XY.J)) || this;
+        return _this;
+    }
+    BookSymmetry.prototype.serialize = function () { return { symmetryType: "book", args: _super.prototype.serialize.call(this).args }; };
+    return BookSymmetry;
+}(ReflectiveSymmetry));
+var DiagonalSymmetry = (function (_super) {
+    __extends(DiagonalSymmetry, _super);
+    function DiagonalSymmetry(cp) {
+        var _this = this;
+        var center = cp.boundary.center();
+        _this = _super.call(this, cp, new Line(center, XY.I.add(XY.J))) || this;
+        return _this;
+    }
+    DiagonalSymmetry.prototype.serialize = function () { return { symmetryType: "diagonal", args: _super.prototype.serialize.call(this).args }; };
+    return DiagonalSymmetry;
+}(ReflectiveSymmetry));
 var BiReflectiveSymmetry = (function (_super) {
     __extends(BiReflectiveSymmetry, _super);
     function BiReflectiveSymmetry(cp, line1, line2) {
@@ -3383,17 +3734,50 @@ var BiReflectiveSymmetry = (function (_super) {
         return newEdges;
     };
     BiReflectiveSymmetry.prototype.serialize = function () {
-        return { symmetryType: "BiReflectiveSymmetry", args: [this.lines[0].point.x, this.lines[0].point.y, this.lines[0].direction.x, this.lines[0].direction.y, this.lines[1].point.x, this.lines[1].point.y, this.lines[1].direction.x, this.lines[1].direction.y] };
+        return { symmetryType: "bireflective", args: [this.lines[0].point.x, this.lines[0].point.y, this.lines[0].direction.x, this.lines[0].direction.y, this.lines[1].point.x, this.lines[1].point.y, this.lines[1].direction.x, this.lines[1].direction.y] };
     };
     return BiReflectiveSymmetry;
 }(CPSymmetry));
+var DoubleBookSymmetry = (function (_super) {
+    __extends(DoubleBookSymmetry, _super);
+    function DoubleBookSymmetry(cp) {
+        var _this = this;
+        var center = cp.boundary.center();
+        _this = _super.call(this, cp, new Line(center, XY.J), new Line(center, XY.I)) || this;
+        return _this;
+    }
+    DoubleBookSymmetry.prototype.serialize = function () { return { symmetryType: "double-book", args: _super.prototype.serialize.call(this).args }; };
+    return DoubleBookSymmetry;
+}(BiReflectiveSymmetry));
+var DoubleDiagonalSymmetry = (function (_super) {
+    __extends(DoubleDiagonalSymmetry, _super);
+    function DoubleDiagonalSymmetry(cp) {
+        var _this = this;
+        var center = cp.boundary.center();
+        _this = _super.call(this, cp, new Line(center, XY.I.add(XY.J)), new Line(center, XY.I.subtract(XY.J))) || this;
+        return _this;
+    }
+    DoubleDiagonalSymmetry.prototype.serialize = function () { return { symmetryType: "double-diagonal", args: _super.prototype.serialize.call(this).args }; };
+    return DoubleDiagonalSymmetry;
+}(BiReflectiveSymmetry));
+var OctagonalSymmetry = (function (_super) {
+    __extends(OctagonalSymmetry, _super);
+    function OctagonalSymmetry(cp) {
+        var _this = this;
+        var center = cp.boundary.center();
+        _this = _super.call(this, cp, new Line(center, XY.J), new Line(center, XY.I.add(XY.J))) || this;
+        return _this;
+    }
+    OctagonalSymmetry.prototype.serialize = function () { return { symmetryType: "octagonal", args: _super.prototype.serialize.call(this).args }; };
+    return OctagonalSymmetry;
+}(BiReflectiveSymmetry));
 var RotationalSymmetry = (function (_super) {
     __extends(RotationalSymmetry, _super);
-    function RotationalSymmetry(cp, center, order) {
+    function RotationalSymmetry(cp, order, center) {
         var _this = _super.call(this, cp) || this;
-        _this.center = center.copy();
         _this.order = order;
-        _this.matrix = new Matrix().rotation(2 * Math.PI / order, center);
+        _this.center = center !== undefined ? center.copy() : undefined;
+        _this.matrix = new Matrix().rotation(2 * Math.PI / order, center !== undefined ? center : cp.boundary.centroid());
         return _this;
     }
     RotationalSymmetry.prototype.symmetricEdges = function (crease) {
@@ -3405,31 +3789,33 @@ var RotationalSymmetry = (function (_super) {
         return newEdges;
     };
     RotationalSymmetry.prototype.serialize = function () {
-        return { symmetryType: "RotationalSymmetry", args: [this.center.x, this.center.y, this.order] };
+        return { symmetryType: "rotational", args: this.center !== undefined ? [this.order, this.center.x, this.center.y] : [this.order] };
     };
     return RotationalSymmetry;
 }(CPSymmetry));
 var TileSymmetry = (function (_super) {
     __extends(TileSymmetry, _super);
-    function TileSymmetry(cp, dx, dy) {
+    function TileSymmetry(cp, dimX, dimY) {
         var _this = _super.call(this, cp) || this;
-        _this.dx = dx;
-        _this.dy = dy;
+        _this.dimX = dimX;
+        _this.dimY = dimY;
         return _this;
     }
     TileSymmetry.prototype.symmetricEdges = function (crease) {
         var box = this.cp.bounds();
-        var i1 = Math.ceil((box.origin.x - Math.max(crease.nodes[0].x, crease.nodes[1].x)) / this.dx);
-        var i2 = Math.floor((box.origin.x + box.size.width - Math.min(crease.nodes[0].x, crease.nodes[1].x)) / this.dx);
-        var j1 = Math.ceil((box.origin.y - Math.max(crease.nodes[0].y, crease.nodes[1].y)) / this.dy);
-        var j2 = Math.floor((box.origin.y + box.size.height - Math.min(crease.nodes[0].y, crease.nodes[1].y)) / this.dy);
+        var dx = box.size.width / this.dimX;
+        var dy = this.dimY !== undefined ? box.size.height / this.dimY : dx;
+        var i1 = Math.ceil((box.origin.x - Math.max(crease.nodes[0].x, crease.nodes[1].x)) / dx);
+        var i2 = Math.floor((box.origin.x + box.size.width - Math.min(crease.nodes[0].x, crease.nodes[1].x)) / dx);
+        var j1 = Math.ceil((box.origin.y - Math.max(crease.nodes[0].y, crease.nodes[1].y)) / dy);
+        var j2 = Math.floor((box.origin.y + box.size.height - Math.min(crease.nodes[0].y, crease.nodes[1].y)) / dy);
         var edge = crease.copy();
         var newEdges = [];
         for (var i = i1; i <= i2; ++i) {
             for (var j = j1; j <= j2; ++j) {
                 if (i == 0 && j == 0)
                     continue;
-                var newEdge = new Edge(edge.nodes[0].translate(i * this.dx, j * this.dy), edge.nodes[1].translate(i * this.dx, j * this.dy));
+                var newEdge = new Edge(edge.nodes[0].translate(i * dx, j * dy), edge.nodes[1].translate(i * dx, j * dy));
                 if (newEdge !== undefined) {
                     newEdges.push(newEdge);
                 }
@@ -3438,7 +3824,7 @@ var TileSymmetry = (function (_super) {
         return newEdges;
     };
     TileSymmetry.prototype.serialize = function () {
-        return { symmetryType: "TileSymmetry", args: [this.dx, this.dy] };
+        return { symmetryType: "tile", args: this.dimY !== undefined ? [this.dimX, this.dimY] : [this.dimX] };
     };
     return TileSymmetry;
 }(CPSymmetry));
@@ -3717,9 +4103,7 @@ var CreasePattern = (function (_super) {
         _this.sectorType = CreaseSector;
         _this.junctionType = CreaseJunction;
         _this.boundary = new ConvexPolygon();
-        _this.gridDimensions = undefined;
-        _this.gridPoints = [];
-        _this.gridLines = [];
+        _this.grid = undefined;
         _this.symmetry = undefined;
         _this.square();
         return _this;
@@ -3734,9 +4118,7 @@ var CreasePattern = (function (_super) {
         this.sectors = [];
         this.junctions = [];
         if (full) {
-            this.gridDimensions = undefined;
-            this.gridPoints = [];
-            this.gridLines = [];
+            this.grid = undefined;
             this.symmetry = undefined;
         }
         this.cleanBoundary();
@@ -3777,11 +4159,35 @@ var CreasePattern = (function (_super) {
         height = Math.abs(height);
         return this.setBoundary([[0, 0], [width, 0], [width, height], [0, height]], true);
     };
+    CreasePattern.prototype.rightTriangle = function (base, height) {
+        if (base == undefined) {
+            base = 1.0;
+        }
+        else if (base < 0) {
+            base = Math.abs(base);
+        }
+        if (height == undefined) {
+            height = base;
+        }
+        else if (height < 0) {
+            height = Math.abs(height);
+        }
+        return this.setBoundary([[0, 0], [base, 0], [0, height]], true);
+    };
+    CreasePattern.prototype.isoscelesTriangle = function (base, height) {
+        if (base == undefined || height == undefined) {
+            return this;
+        }
+        base = Math.abs(base);
+        height = Math.abs(height);
+        return this.setBoundary([[0, 0], [base, 0], [base / 2, height]], true);
+    };
     CreasePattern.prototype.polygon = function (sides) {
         if (sides < 3) {
             return this;
         }
-        return this.setBoundary(new ConvexPolygon().regularPolygon(sides).nodes());
+        var p = new ConvexPolygon().regularPolygon(sides);
+        return this.setBoundary(p.nodes());
     };
     CreasePattern.prototype.noBoundary = function () {
         this.boundary.edges = [];
@@ -3802,6 +4208,12 @@ var CreasePattern = (function (_super) {
         }
         this.cleanBoundary();
         this.clean();
+        if (this.grid !== undefined) {
+            this.setGrid(CPGrid.deserialize(this, this.grid.serialize()));
+        }
+        if (this.symmetry !== undefined) {
+            this.setSymmetry(CPSymmetry.deserialize(this, this.symmetry.serialize()));
+        }
         return this;
     };
     CreasePattern.prototype.setMinimumRectBoundary = function () {
@@ -3813,66 +4225,79 @@ var CreasePattern = (function (_super) {
             [bounds.origin.x, bounds.origin.y + bounds.size.height]
         ]);
     };
-    CreasePattern.prototype.noGrid = function () { this.gridDimensions = undefined; this.gridPoints = []; this.gridLines = []; };
-    CreasePattern.prototype.setGrid = function (dimX, dimY) {
-        this.gridDimensions = { dimX: dimX, dimY: dimY };
-        this.gridPoints = [];
-        this.gridLines = [];
-        for (var i = 0; i <= dimX; ++i) {
-            for (var j = 0; j <= dimY; ++j) {
-                var point = new CPGridPoint(this, i, j);
-                point.index = this.gridPoints.length;
-                this.gridPoints.push(point);
-            }
+    CreasePattern.prototype.noGrid = function () {
+        this.grid = undefined;
+        return this;
+    };
+    CreasePattern.prototype.squareGrid = function (dimX) {
+        this.grid = new SquareGrid(this, dimX);
+        return this;
+    };
+    CreasePattern.prototype.rectangularGrid = function (dimX, dimY) {
+        this.grid = new RectangularGrid(this, dimX, dimY);
+        return this;
+    };
+    CreasePattern.prototype.diagonalGrid = function (dimX) {
+        this.grid = new DiagonalGrid(this, dimX);
+        return this;
+    };
+    CreasePattern.prototype.rhombicGrid = function (dimX, dimY) {
+        this.grid = new RhombicGrid(this, dimX, dimY);
+        return this;
+    };
+    CreasePattern.prototype.parallelogramGrid = function (dimX, dimY, angle) {
+        this.grid = new ParallelogramGrid(this, dimX, dimY, angle);
+        return this;
+    };
+    CreasePattern.prototype.isometricGrid = function (dimX) {
+        this.grid = new IsometricGrid(this, dimX);
+        return this;
+    };
+    CreasePattern.prototype.isoscelesGrid = function (dimX, dimY) {
+        this.grid = new IsoscelesGrid(this, dimX, dimY);
+        return this;
+    };
+    CreasePattern.prototype.triangularGrid = function (dimX, dimY, angle) {
+        this.grid = new TriangularGrid(this, dimX, dimY, angle);
+        return this;
+    };
+    CreasePattern.prototype.setGrid = function (grid) {
+        if (grid === undefined || grid.cp !== this) {
+            return this.noGrid();
         }
-        for (var i = 1; i < dimX; ++i) {
-            var line = new CPGridLine(this, i, 0, XY.J);
-            line.index = this.gridLines.length;
-            this.gridLines.push(line);
-        }
-        for (var j = 1; j < dimY; ++j) {
-            var line = new CPGridLine(this, 0, j, XY.I);
-            line.index = this.gridLines.length;
-            this.gridLines.push(line);
-        }
+        this.grid = grid;
+        return this;
     };
     CreasePattern.prototype.noSymmetry = function () {
         this.symmetry = undefined;
         return this;
     };
     CreasePattern.prototype.bookSymmetry = function () {
-        var center = this.boundary.center();
-        this.symmetry = new ReflectiveSymmetry(this, new Line(center, XY.J));
+        this.symmetry = new BookSymmetry(this);
         return this;
     };
     CreasePattern.prototype.doubleBookSymmetry = function () {
-        var center = this.boundary.center();
-        this.symmetry = new BiReflectiveSymmetry(this, new Line(center, XY.J), new Line(center, XY.I));
+        this.symmetry = new DoubleBookSymmetry(this);
         return this;
     };
     CreasePattern.prototype.diagonalSymmetry = function () {
-        var center = this.boundary.center();
-        this.symmetry = new ReflectiveSymmetry(this, new Line(center, new XY(0.7071, 0.7071)));
+        this.symmetry = new DiagonalSymmetry(this);
         return this;
     };
     CreasePattern.prototype.doubleDiagonalSymmetry = function () {
-        var center = this.boundary.center();
-        this.symmetry = new BiReflectiveSymmetry(this, new Line(center, new XY(0.7071, 0.7071)), new Line(center, new XY(0.7071, -0.7071)));
+        this.symmetry = new DoubleDiagonalSymmetry(this);
         return this;
     };
     CreasePattern.prototype.octagonalSymmetry = function () {
-        var center = this.boundary.center();
-        this.symmetry = new BiReflectiveSymmetry(this, new Line(center, XY.J), new Line(center, new XY(0.7071, 0.7071)));
+        this.symmetry = new OctagonalSymmetry(this);
         return this;
     };
     CreasePattern.prototype.rotationalSymmetry = function (order) {
-        var center = this.boundary.center();
-        this.symmetry = new RotationalSymmetry(this, center, order);
+        this.symmetry = new RotationalSymmetry(this, order);
         return this;
     };
     CreasePattern.prototype.tileSymmetry = function (dimX, dimY) {
-        var box = this.bounds();
-        this.symmetry = new TileSymmetry(this, box.size.width / dimX, box.size.height / dimY);
+        this.symmetry = new TileSymmetry(this, dimX, dimY);
         return this;
     };
     CreasePattern.prototype.setSymmetryLine = function (a, b, c, d) {
@@ -3906,7 +4331,7 @@ var CreasePattern = (function (_super) {
     };
     CreasePattern.prototype.axiom3 = function (one, two) {
         return new Edge(one).infiniteLine().bisect(new Edge(two).infiniteLine())
-            .map(function (newLine) { return new CPEdge(this, this.boundary.clipLine(newLine)); }, this);
+            .map(function (newLine) { console.log(newLine); console.log(this.boundary.clipLine(newLine)); return new CPEdge(this, this.boundary.clipLine(newLine)); }, this);
     };
     CreasePattern.prototype.axiom4 = function (line, point) {
         var newLine = new Line(point, new Edge(line).vector().rotate90());
@@ -4191,14 +4616,11 @@ var CreasePattern = (function (_super) {
             .filter(function (el) { return el != undefined; });
     };
     CreasePattern.prototype.creaseGrid = function (i1, j1, i2, j2) {
-        if (this.gridDimensions === undefined) {
+        if (this.grid === undefined) {
             return undefined;
         }
-        var p1 = this.gridPoints[(this.gridDimensions.dimY + 1) * i1 + j1];
-        var p2 = this.gridPoints[(this.gridDimensions.dimY + 1) * i2 + j2];
-        if (p1 === undefined || p2 === undefined) {
-            return undefined;
-        }
+        var p1 = this.grid.origin.add(this.grid.vectors[0].scale(i1)).add(this.grid.vectors[1].scale(j1));
+        var p2 = this.grid.origin.add(this.grid.vectors[0].scale(i2)).add(this.grid.vectors[1].scale(j2));
         return this.creaseThroughPoints(p1, p2);
     };
     CreasePattern.prototype.creaseThroughPoints = function (a, b, c, d) {
@@ -4459,35 +4881,8 @@ var CreasePattern = (function (_super) {
     };
     CreasePattern.prototype.nearest = function (a, b) {
         var n = _super.prototype.nearest.call(this, a, b);
-        if (this.gridDimensions === undefined) {
-            return n;
-        }
-        var box = this.bounds();
-        var dx = box.size.width / this.gridDimensions.dimX;
-        var dy = box.size.height / this.gridDimensions.dimY;
-        var fi = Math.floor((n.point.x - box.origin.x) * this.gridDimensions.dimX);
-        var ci = Math.ceil((n.point.x - box.origin.x) * this.gridDimensions.dimX);
-        var fj = Math.floor((n.point.y - box.origin.y) * this.gridDimensions.dimY);
-        var cj = Math.ceil((n.point.y - box.origin.y) * this.gridDimensions.dimY);
-        var i = (n.point.x - fi * dx <= ci * dx - n.point.x) ? fi : ci;
-        var j = (n.point.y - fj * dy <= cj * dy - n.point.y) ? fj : cj;
-        if (i >= 0 && i <= this.gridDimensions.dimX && j >= 0 && j <= this.gridDimensions.dimY) {
-            n.gridPoint = this.gridPoints[(this.gridDimensions.dimY + 1) * i + j];
-            if (i % this.gridDimensions.dimX != 0 || j % this.gridDimensions.dimY != 0) {
-                var line1 = this.gridLines[i - 1];
-                var line2 = this.gridLines[this.gridDimensions.dimX + j - 2];
-                if (i % this.gridDimensions.dimX == 0) {
-                    n.gridLine = line2;
-                }
-                else if (j % this.gridDimensions.dimY == 0) {
-                    n.gridLine = line1;
-                }
-                else {
-                    var d1 = line1.nearestPoint(n.point).distanceTo(n.point);
-                    var d2 = line2.nearestPoint(n.point).distanceTo(n.point);
-                    n.gridLine = d1 <= d2 ? line1 : line2;
-                }
-            }
+        if (this.grid !== undefined) {
+            Object.assign(n, this.grid.nearest(gimme1XY(a, b)));
         }
         return n;
     };
@@ -4676,8 +5071,8 @@ var CreasePattern = (function (_super) {
                 default: return 0;
             }
         }, this);
-        if (this.gridDimensions !== undefined) {
-            file["rabbitear:gridDimensions"] = [this.gridDimensions.dimX, this.gridDimensions.dimY];
+        if (this.grid !== undefined) {
+            file["rabbitear:gridDimensions"] = this.grid.serialize();
         }
         if (this.symmetry !== undefined) {
             file["rabbitear:symmetry"] = this.symmetry.serialize();
@@ -4736,8 +5131,7 @@ var CreasePattern = (function (_super) {
             this.symmetry = CPSymmetry.deserialize(this, file["rabbitear:symmetry"]);
         }
         if (file["rabbitear:grid"] !== undefined) {
-            var g = file["rabbitear:grid"];
-            this.setGrid(g[0], g[1]);
+            this.grid = CPGrid.deserialize(this, file["rabbitear:grid"]);
         }
         return this;
     };

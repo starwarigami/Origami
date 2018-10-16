@@ -115,36 +115,327 @@ class CPPolyline extends Polyline{
 	crease(){ return this.cp.creasePolyline(this); }
 }
 class CPGridPoint extends XY{
-	cp:CreasePattern;
-	i:number;
-	j:number;
+	readonly cp:CreasePattern;
+	readonly i:number;
+	readonly j:number;
 	index:number;
 
-	constructor(cp:CreasePattern,i:number,j:number){
-		var box:Rect = cp.bounds();
-		super(box.origin.add(i * box.size.width/cp.gridDimensions.dimX, j * box.size.height/cp.gridDimensions.dimY));
+	constructor(cp:CreasePattern, point:XY, i:number, j:number){
+		super(point);
 		this.cp = cp;
 		this.i = i;
 		this.j = j
 	}
 }
 class CPGridLine extends Edge{
-	cp:CreasePattern;
-	i:number;
-	j:number;
+	readonly cp:CreasePattern;
 	index:number;
 
-	constructor(cp:CreasePattern,i:number,j:number,v:XY){
-		var box:Rect = cp.bounds();
-		var line:Line = new Line(box.origin.add(i * box.size.width/cp.gridDimensions.dimX, j * box.size.height/cp.gridDimensions.dimY), v);
-		super(cp.boundary.clipLine(line));
+	constructor(cp:CreasePattern,line:Edge){
+		super(line);
 		this.cp = cp;
-		this.i = i;
-		this.j = j
+	}
+}
+class CPGrid{
+	readonly cp:CreasePattern;
+	readonly gridPoints:CPGridPoint[];
+	readonly gridLines:CPGridLine[];
+	readonly vectors:[XY,XY];
+	readonly origin:XY;
+	readonly triangulated:boolean;
+
+	constructor(cp:CreasePattern, vector1:XY, vector2?:XY, origin?:XY, triangulated?:boolean){
+		if(vector2 === undefined){ vector2 = vector1.rotate90(); }
+		if(origin === undefined){ origin = XY.origin; }
+		if(triangulated === undefined){ triangulated = false; }
+
+		this.cp = cp;
+		this.vectors = [vector1.copy(), vector2.copy()];
+		this.origin = origin.copy();
+		this.triangulated = triangulated;
+
+		if(triangulated){ var vector3:XY = vector2.subtract(vector1); }
+
+		var gridPoints:CPGridPoint[] = [];
+		var gridLines:CPGridLine[] = [];
+		var box:Rect = cp.bounds();
+		var mini = 0;
+		var maxi = 0;
+		var minj = 0;
+		var maxj = 0;
+		//var i = 0;
+		//var di = 1;
+		//var c = 0;
+
+		var visited = {}
+		function iterate(i, j){
+			var key = 'I' + (i < 0 ? '_' + Math.abs(i) : i) + 'J' + (j < 0 ? '_' + Math.abs(j) : j);
+			if (visited[key]) return;
+			visited[key] = true;
+
+			var pij:XY = origin.add(vector1.scale(i)).add(vector2.scale(j));
+			if(box.coincident(pij, true, true, EPSILON_HIGH)){
+				var point:CPGridPoint = new CPGridPoint(cp, pij, i, j);
+				point.index = gridPoints.length;
+				gridPoints.push(point);
+
+				if(i < mini){ mini = i; }
+				else if(i > maxi){ maxi = i; }
+				if(j < minj){ minj = j; }
+				else if(j > maxj){ maxj = j; }
+
+				iterate(i-1,j);
+				iterate(i+1,j);
+				iterate(i,j-1);
+				iterate(i,j+1);
+			}
+		}
+
+		iterate(0,0);
+		for (var i = mini; i <= maxi; ++i){
+			var e:Edge = cp.boundary.clipLine(new Line(this.origin.add(vector1.scale(i)), vector2));
+			if (e !== undefined){
+				var line:CPGridLine = new CPGridLine(cp, e);
+				line.index = gridLines.length;
+				gridLines.push(line);
+			}
+			if (triangulated){
+				e = cp.boundary.clipLine(new Line(this.origin.add(vector1.scale(i)), vector3));
+				if (e !== undefined){
+					line = new CPGridLine(cp, e);
+					line.index = gridLines.length;
+					gridLines.push(line);
+				}
+			}
+		}
+		for (var j = minj; j <= maxj; ++j){
+			e = cp.boundary.clipLine(new Line(this.origin.add(vector2.scale(j)), vector1));
+			if (e !== undefined){
+				line = new CPGridLine(cp, e);
+				line.index = gridLines.length;
+				gridLines.push(line);
+			}
+			if (triangulated && j > minj){
+				e = cp.boundary.clipLine(new Line(this.origin.add(vector1.scale(maxi)).add(vector2.scale(j)), vector3));
+				if (e !== undefined){
+					line = new CPGridLine(cp, e);
+					line.index = gridLines.length;
+					gridLines.push(line);
+				}
+			}
+		}
+
+		this.gridPoints = gridPoints;
+		this.gridLines = gridLines;
+	}
+
+	nearest(a:any,b?:any):{'gridPoint':CPGridPoint,'gridLine':CPGridLine}{
+		var point = gimme1XY(a,b);
+		var sortedPoints = this.gridPoints
+			.map(function(p){ return {'p':p, 'distance':point.distanceTo(p)};},this)
+			.sort(function(a,b){ return a.distance - b.distance;});
+		var gridPoint:CPGridPoint = sortedPoints[0] !== undefined ? sortedPoints[0].p : undefined;
+		var sortedLines = this.gridLines
+			.map(function(l:CPGridLine){ return {l:l, distance:l.nearestPoint(point).distanceTo(point)}; },this)
+			.sort(function(a,b){ return a.distance - b.distance; });
+		var gridLine = sortedLines[0] !== undefined ? sortedLines[0].l : undefined; //console.log('' + gridPoint.i + ',' + gridPoint.j)
+		return { 'gridPoint':gridPoint, 'gridLine':gridLine };
+	}
+
+	serialize():{gridType:String, args:number[]}{
+		return {gridType:"grid", args:[this.vectors[0].x, this.vectors[0].y, this.vectors[1].x, this.vectors[1].y, this.origin.x, this.origin.y, this.triangulated ? 1 : 0]};
+	}
+	static deserialize(cp:CreasePattern, g:{gridType:String, args:number[]}):CPGrid{
+		if (g === undefined) return undefined;
+		switch(g.gridType){
+			case "rectangular":
+				return new RectangularGrid(cp, g.args[0], g.args[1]);
+			case "square":
+				return new SquareGrid(cp, g.args[0]);
+			case "parallelogram":
+				return new ParallelogramGrid(cp, g.args[0], g.args[1], g.args[2]);
+			case "rhombic":
+				return new RhombicGrid(cp, g.args[0], g.args[1]);
+			case "diagonal":
+				return new DiagonalGrid(cp, g.args[0]);
+			case "triangular":
+				return new TriangularGrid(cp, g.args[0], g.args[1], g.args[2]);
+			case "isometric":
+				return new IsometricGrid(cp, g.args[0]);
+			case "isosceles":
+				return new IsoscelesGrid(cp, g.args[0], g.args[1]);
+			case "grid":
+				return new CPGrid(cp, new XY(g.args[0], g.args[1]), new XY(g.args[2], g.args[3]), new XY(g.args[4], g.args[5]), g.args[6] != 0)
+			default:
+				return undefined;
+		}
+	}
+}
+class RectangularGrid extends CPGrid{
+	readonly dimX:number;
+	readonly dimY:number;
+
+	constructor(cp:CreasePattern, dimX:number, dimY:number){
+		var edges:Edge[] = cp.boundary.edges;
+		var dx:number = edges[0].length() / dimX;
+		var dy:number = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+		var origin:XY = edges[0].nodes[0];
+		var versor:XY = edges[0].vector().normalize();
+		var vector1:XY = versor.scale(dx);
+		var vector2:XY = versor.rotate90().scale(dy);
+		super(cp, vector1, vector2, origin);
+		this.dimX = dimX;
+		this.dimY = dimY;
+	}
+
+	serialize():{gridType:String, args:number[]}{
+		return {gridType:"rectangular", args:[this.dimX, this.dimY]};
+	}
+}
+class SquareGrid extends CPGrid{
+	readonly dimX:number;
+
+	constructor(cp:CreasePattern, dimX:number){
+		var edges:Edge[] = cp.boundary.edges;
+		var dx:number = edges[0].length() / dimX;
+		var origin:XY = edges[0].nodes[0];
+		var vector:XY = edges[0].vector().normalize().scale(dx);
+		super(cp, vector, vector.rotate90(), origin);
+		this.dimX = dimX;
+	}
+
+	serialize():{gridType:String, args:number[]}{
+		return {gridType:"square", args:[this.dimX]};
+	}
+}
+class RhombicGrid extends CPGrid{
+	readonly dimX:number;
+	readonly dimY:number;
+
+	constructor(cp:CreasePattern, dimX:number, dimY:number){
+		var edges:Edge[] = cp.boundary.edges;
+		var dx:number = edges[0].length() / dimX;
+		var dy:number = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+		var origin:XY = edges[0].nodes[0];
+		var versor:XY = edges[0].vector().normalize();
+		var vector1:XY = versor.rotate90().scale(dy/2).add(versor.scale(dx/2));
+		var vector2:XY = versor.rotate90().scale(dy/2).subtract(versor.scale(dx/2));
+		super(cp, vector1, vector2, origin);
+		this.dimX = dimX;
+		this.dimY = dimY;
+	}
+
+	serialize():{gridType:String, args:number[]}{
+		return {gridType:"rhombic", args:[this.dimX, this.dimY]};
+	}
+}
+class DiagonalGrid extends CPGrid{
+	readonly dimX:number;
+
+	constructor(cp:CreasePattern, dimX:number){
+		var edges:Edge[] = cp.boundary.edges;
+		var dx:number = edges[0].length() / dimX;
+		var origin:XY = edges[0].nodes[0];
+		var vector:XY = edges[0].vector().normalize().scale(dx/2);
+		vector = vector.add(vector.rotate90());console.log(vector);
+		super(cp, vector, vector.rotate90(), origin);
+		this.dimX = dimX;
+	}
+
+	serialize():{gridType:String, args:number[]}{
+		return {gridType:"diagonal", args:[this.dimX]};
+	}
+}
+class ParallelogramGrid extends CPGrid{
+	readonly dimX:number;
+	readonly dimY:number;
+	readonly angle:number;
+
+	constructor(cp:CreasePattern, dimX:number, dimY:number, angle:number){
+		var edges:Edge[] = cp.boundary.edges;
+		var dx:number = edges[0].length() / dimX;
+		var dy:number = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+		var angleRadians:number = angle*Math.PI/180;
+		var origin:XY = edges[0].nodes[0];
+		var versor:XY = edges[0].vector().normalize();
+		var vector1:XY = versor.scale(dx);
+		var vector2:XY = versor.rotate(-angleRadians).scale(dy / Math.sin(angleRadians));
+		super(cp, vector1, vector2, origin);
+		this.dimX = dimX;
+		this.dimY = dimY;
+		this.angle = angle;
+	}
+
+	serialize():{gridType:String, args:number[]}{
+		return {gridType:"parallelogram", args:[this.dimX, this.dimY, this.angle]};
+	}
+}
+class TriangularGrid extends CPGrid{
+	readonly dimX:number;
+	readonly dimY:number;
+	readonly angle:number;
+
+	constructor(cp:CreasePattern, dimX:number, dimY:number, angle:number){
+		var edges:Edge[] = cp.boundary.edges;
+		var dx:number = edges[0].length() / dimX;
+		var dy:number = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+		var angleRadians:number = angle*Math.PI/180;
+		var origin:XY = edges[0].nodes[0];
+		var versor:XY = edges[0].vector().normalize();
+		var vector1:XY = versor.scale(dx);
+		var vector2:XY = versor.rotate(-angleRadians).scale(dy / Math.sin(angleRadians));
+		super(cp, vector1, vector2, origin, true);
+		this.dimX = dimX;
+		this.dimY = dimY;
+		this.angle = angle;
+	}
+
+	serialize():{gridType:String, args:number[]}{
+		return {gridType:"triangular", args:[this.dimX, this.dimY, this.angle]};
+	}
+}
+class IsometricGrid extends CPGrid{
+	readonly dimX:number;
+
+	constructor(cp:CreasePattern, dimX:number){
+		var edges:Edge[] = cp.boundary.edges;
+		var dx:number = edges[0].length() / dimX;
+		var origin:XY = edges[0].nodes[0];
+		var vector1:XY = edges[0].vector().normalize().scale(dx);
+		var vector2:XY = vector1.rotate(-Math.PI/3);
+		super(cp, vector1, vector2, origin, true);
+		this.dimX = dimX;
+	}
+
+	serialize():{gridType:String, args:number[]}{
+		return {gridType:"isometric", args:[this.dimX]};
+	}
+
+}
+
+class IsoscelesGrid extends CPGrid{
+	readonly dimX:number;
+	readonly dimY:number;
+
+	constructor(cp:CreasePattern, dimX:number, dimY:number){
+		var edges:Edge[] = cp.boundary.edges;
+		var dx:number = edges[0].length() / dimX;
+		var dy:number = (edges[1].length() / dimY) * Math.sin(edges[1].vector().clockwiseInteriorAngle(edges[0].vector()));
+		var origin:XY = edges[0].nodes[0];
+		var versor:XY = edges[0].vector().normalize();
+		var vector1:XY = versor.scale(dx);
+		var vector2:XY = versor.rotate90().scale(dy).add(versor.scale(dx/2));
+		super(cp, vector1, vector2, origin, true);
+		this.dimX = dimX;
+		this.dimY = dimY;
+	}
+
+	serialize():{gridType:String, args:number[]}{
+		return {gridType:"isosceles", args:[this.dimX, this.dimY]};
 	}
 }
 abstract class CPSymmetry{
-	cp:CreasePattern;
+	readonly cp:CreasePattern;
 
 	constructor(cp:CreasePattern){ this.cp = cp; }
 
@@ -175,21 +466,33 @@ abstract class CPSymmetry{
 	static deserialize(cp:CreasePattern, s:{symmetryType:String, args:number[]}):CPSymmetry{
 		if (s === undefined) return undefined;
 		switch(s.symmetryType){
-			case "ReflectiveSymmetry":
+			case "book":
+				return new BookSymmetry(cp);
+			case "diagonal":
+				return new DiagonalSymmetry(cp);
+			case "reflective":
 				return new ReflectiveSymmetry(cp, new Line(s.args[0], s.args[1], s.args[2], s.args[3]));
-			case "BiReflectiveSymmetry":
+			case "double-book":
+				return new DoubleBookSymmetry(cp);
+			case "double-diagonal":
+				return new DoubleDiagonalSymmetry(cp);
+			case "octagonal":
+				return new OctagonalSymmetry(cp);
+			case "bireflective":
 				return new BiReflectiveSymmetry(cp, new Line(s.args[0], s.args[1], s.args[2], s.args[3]), new Line(s.args[4], s.args[4], s.args[6], s.args[7]));
-			case "RotationalSymmetry":
-				return new RotationalSymmetry(cp, new XY(s.args[0], s.args[1]), s.args[2]);
-			case "TileSymmetry":
-				return new TileSymmetry(cp, s.args[0], s.args[1]);
+			case "rotational":
+				if(s.args.length == 1){ return new RotationalSymmetry(cp, s.args[0]); }
+				else{ return new RotationalSymmetry(cp, s.args[0], new XY(s.args[1], s.args[2])); }
+			case "tile":
+				if(s.args.length == 1){ return new TileSymmetry(cp, s.args[0]); }
+				else{ return new TileSymmetry(cp, s.args[0], s.args[1]); }
 			default:
 				return undefined;
 		}
 	}
 }
 class ReflectiveSymmetry extends CPSymmetry{
-	private line:Line;
+	readonly line:Line;
 	private matrix:Matrix;
 
 	constructor(cp:CreasePattern, line:Line){
@@ -205,11 +508,25 @@ class ReflectiveSymmetry extends CPSymmetry{
 	}
 
 	serialize():{symmetryType:String, args:number[]}{
-		return {symmetryType:"ReflectiveSymmetry", args:[this.line.point.x, this.line.point.y, this.line.direction.x, this.line.direction.y]};
+		return {symmetryType:"reflective", args:[this.line.point.x, this.line.point.y, this.line.direction.x, this.line.direction.y]};
 	}
 }
+class BookSymmetry extends ReflectiveSymmetry{
+	constructor(cp:CreasePattern){
+		var center:XY = cp.boundary.center();
+		super(cp, new Line(center, XY.J));
+	}
+	serialize():{symmetryType:String, args:number[]}{ return {symmetryType:"book", args:super.serialize().args}; }
+}
+class DiagonalSymmetry extends ReflectiveSymmetry{
+	constructor(cp:CreasePattern){
+		var center:XY = cp.boundary.center();
+		super(cp, new Line(center, XY.I.add(XY.J)));
+	}
+	serialize():{symmetryType:String, args:number[]}{ return {symmetryType:"diagonal", args:super.serialize().args}; }
+}
 class BiReflectiveSymmetry extends CPSymmetry{
-	private lines:[Line,Line];
+	readonly lines:[Line,Line];
 	private matrices:[Matrix,Matrix];
 
 	constructor(cp:CreasePattern, line1:Line, line2:Line){
@@ -236,19 +553,40 @@ class BiReflectiveSymmetry extends CPSymmetry{
 	}
 
 	serialize():{symmetryType:String, args:number[]}{
-		return {symmetryType:"BiReflectiveSymmetry", args:[this.lines[0].point.x, this.lines[0].point.y, this.lines[0].direction.x, this.lines[0].direction.y, this.lines[1].point.x, this.lines[1].point.y, this.lines[1].direction.x, this.lines[1].direction.y]};
+		return {symmetryType:"bireflective", args:[this.lines[0].point.x, this.lines[0].point.y, this.lines[0].direction.x, this.lines[0].direction.y, this.lines[1].point.x, this.lines[1].point.y, this.lines[1].direction.x, this.lines[1].direction.y]};
 	}
 }
+class DoubleBookSymmetry extends BiReflectiveSymmetry{
+	constructor(cp:CreasePattern){
+		var center = cp.boundary.center();
+		super(cp, new Line(center, XY.J), new Line(center, XY.I));
+	}
+	serialize():{symmetryType:String, args:number[]}{ return {symmetryType:"double-book", args:super.serialize().args}; }
+}
+class DoubleDiagonalSymmetry extends BiReflectiveSymmetry{
+	constructor(cp:CreasePattern){
+		var center:XY = cp.boundary.center();
+		super(cp, new Line(center, XY.I.add(XY.J)), new Line(center, XY.I.subtract(XY.J)));
+	}
+	serialize():{symmetryType:String, args:number[]}{ return {symmetryType:"double-diagonal", args:super.serialize().args}; }
+}
+class OctagonalSymmetry extends BiReflectiveSymmetry{
+	constructor(cp:CreasePattern){
+		var center = cp.boundary.center();
+		super(cp, new Line(center, XY.J), new Line(center, XY.I.add(XY.J)));
+	}
+	serialize():{symmetryType:String, args:number[]}{ return {symmetryType:"octagonal", args:super.serialize().args}; }
+}
 class RotationalSymmetry extends CPSymmetry{
-	private center:XY;
-	private order:number;
+	readonly order:number;
+	readonly center:XY;
 	private matrix:Matrix;
 
-	constructor(cp:CreasePattern, center:XY, order:number){
+	constructor(cp:CreasePattern, order:number, center?:XY){
 		super(cp);
-		this.center = center.copy();
 		this.order = order;
-		this.matrix = new Matrix().rotation(2 * Math.PI / order, center);
+		this.center = center !== undefined ? center.copy() : undefined;
+		this.matrix = new Matrix().rotation(2 * Math.PI / order, center !== undefined ? center : cp.boundary.centroid());
 	}
 
 	protected symmetricEdges(crease:Crease):Edge[]{
@@ -261,31 +599,33 @@ class RotationalSymmetry extends CPSymmetry{
 	}
 
 	serialize():{symmetryType:String, args:number[]}{
-		return {symmetryType:"RotationalSymmetry", args:[this.center.x, this.center.y, this.order]};
+		return {symmetryType:"rotational", args:this.center !== undefined ? [this.order, this.center.x, this.center.y] : [this.order]};
 	}
 }
 class TileSymmetry extends CPSymmetry{
-	private dx:number;
-	private dy:number;
+	readonly dimX:number;
+	readonly dimY:number;
 
-	constructor(cp:CreasePattern, dx:number, dy:number){
+	constructor(cp:CreasePattern, dimX:number, dimY?:number){
 		super(cp);
-		this.dx = dx;
-		this.dy = dy;
+		this.dimX = dimX;
+		this.dimY = dimY;
 	}
 
 	symmetricEdges(crease:Crease):Edge[]{
 		var box:Rect = this.cp.bounds();
-		var i1:number = Math.ceil((box.origin.x - Math.max(crease.nodes[0].x, crease.nodes[1].x)) / this.dx);
-		var i2:number = Math.floor((box.origin.x + box.size.width - Math.min(crease.nodes[0].x, crease.nodes[1].x)) / this.dx);
-		var j1:number = Math.ceil((box.origin.y - Math.max(crease.nodes[0].y, crease.nodes[1].y)) / this.dy);
-		var j2:number = Math.floor((box.origin.y + box.size.height - Math.min(crease.nodes[0].y, crease.nodes[1].y)) / this.dy);
+		var dx:number = box.size.width/this.dimX;
+		var dy:number = this.dimY !== undefined ? box.size.height/this.dimY : dx;
+		var i1:number = Math.ceil((box.origin.x - Math.max(crease.nodes[0].x, crease.nodes[1].x))/dx);
+		var i2:number = Math.floor((box.origin.x + box.size.width - Math.min(crease.nodes[0].x, crease.nodes[1].x))/dx);
+		var j1:number = Math.ceil((box.origin.y - Math.max(crease.nodes[0].y, crease.nodes[1].y))/dy);
+		var j2:number = Math.floor((box.origin.y + box.size.height - Math.min(crease.nodes[0].y, crease.nodes[1].y))/dy);
 		var edge:Edge = crease.copy();
 		var newEdges:Edge[] = [];
 		for (var i = i1; i <= i2; ++i){
 			for (var j = j1; j <= j2; ++j){
 				if (i == 0 && j == 0) continue;
-				var newEdge:Edge = new Edge(edge.nodes[0].translate(i*this.dx, j*this.dy), edge.nodes[1].translate(i*this.dx, j*this.dy));
+				var newEdge:Edge = new Edge(edge.nodes[0].translate(i*dx, j*dy), edge.nodes[1].translate(i*dx, j*dy));
 				if (newEdge !== undefined){ newEdges.push(newEdge); }
 			}
 		}
@@ -293,7 +633,7 @@ class TileSymmetry extends CPSymmetry{
 	}
 
 	serialize():{symmetryType:String, args:number[]}{
-		return {symmetryType:"TileSymmetry", args:[this.dx, this.dy]};
+		return {symmetryType:"tile", args:this.dimY !== undefined ? [this.dimX, this.dimY] : [this.dimX]};
 	}
 }
 // class RabbitEar{
@@ -559,9 +899,7 @@ class CreasePattern extends PlanarGraph{
 	// for now boundaries are limited to convex polygons. an update simply requires switching this out.
 	boundary:ConvexPolygon;
 
-	gridDimensions:{dimX:number,dimY:number};
-	gridPoints:CPGridPoint[];
-	gridLines:CPGridLine[];
+	grid:CPGrid;
 	symmetry:CPSymmetry;
 
 	// this will store the global fold sequence
@@ -579,9 +917,7 @@ class CreasePattern extends PlanarGraph{
 	constructor(){
 		super();
 		this.boundary = new ConvexPolygon();
-		this.gridDimensions = undefined;
-		this.gridPoints = [];
-		this.gridLines = [];
+		this.grid = undefined;
 		this.symmetry = undefined;
 		this.square();
 	}
@@ -597,9 +933,7 @@ class CreasePattern extends PlanarGraph{
 		this.sectors = [];
 		this.junctions = [];
 		if(full){
-			this.gridDimensions = undefined;
-			this.gridPoints = [];
-			this.gridLines = [];
+			this.grid = undefined;
 			this.symmetry = undefined;
 		}
 		this.cleanBoundary();
@@ -639,9 +973,24 @@ class CreasePattern extends PlanarGraph{
 		height = Math.abs(height);
 		return this.setBoundary([[0,0], [width,0], [width,height], [0,height]], true);
 	}
+	rightTriangle(base?:number, height?:number):CreasePattern{
+		if(base == undefined){ base = 1.0; }
+		else if(base < 0){ base = Math.abs(base); }
+		if(height == undefined){ height = base; }
+		else if(height < 0){ height = Math.abs(height); }
+		return this.setBoundary([[0,0], [base,0], [0,height]], true);
+	}
+	isoscelesTriangle(base:number, height:number):CreasePattern{
+		if(base == undefined || height == undefined){ return this; }
+		base = Math.abs(base);
+		height = Math.abs(height);
+		return this.setBoundary([[0,0], [base,0], [base/2,height]], true);
+	}
 	polygon(sides:number):CreasePattern{
 		if(sides < 3){ return this; }
-		return this.setBoundary(new ConvexPolygon().regularPolygon(sides).nodes());
+		var p:ConvexPolygon = new ConvexPolygon().regularPolygon(sides);
+		//var box:Rect = p.minimumRect();
+		return this.setBoundary(p.nodes());//.map(function(e:XY):XY{ return e.subtract(box.origin); }));
 	}
 	noBoundary():CreasePattern{
 		this.boundary.edges = [];
@@ -657,6 +1006,9 @@ class CreasePattern extends PlanarGraph{
 		else{ this.boundary.convexHull(points); }
 		this.cleanBoundary();
 		this.clean();
+		//if the boundary changes, regenerate grid points and symmetry lines accordingly
+		if (this.grid !== undefined){ this.setGrid(CPGrid.deserialize(this, this.grid.serialize())); }
+		if (this.symmetry !== undefined){ this.setSymmetry(CPSymmetry.deserialize(this, this.symmetry.serialize())); }
 		return this;
 	}
 	setMinimumRectBoundary():CreasePattern{
@@ -672,28 +1024,46 @@ class CreasePattern extends PlanarGraph{
 	///////////////////////////////////////////////////////////////
 	// GRID
 
-	noGrid(){ this.gridDimensions = undefined; this.gridPoints = []; this.gridLines = []; }
-	setGrid(dimX:number, dimY:number){
-		this.gridDimensions = {dimX:dimX, dimY:dimY};
-		this.gridPoints = [];
-		this.gridLines = [];
-		for (var i = 0; i <= dimX; ++i){
-			for (var j = 0; j <= dimY; ++j){
-				var point:CPGridPoint = new CPGridPoint(this, i, j);
-				point.index = this.gridPoints.length;
-				this.gridPoints.push(point);
-			}
-		}
-		for (var i = 1; i < dimX; ++i){
-			var line:CPGridLine = new CPGridLine(this, i, 0, XY.J);
-			line.index = this.gridLines.length;
-			this.gridLines.push(line);
-		}
-		for (var j = 1; j < dimY; ++j){
-			var line:CPGridLine = new CPGridLine(this, 0, j, XY.I);
-			line.index = this.gridLines.length;
-			this.gridLines.push(line);
-		}
+	noGrid():CreasePattern{
+		this.grid = undefined;
+		return this;
+	}
+	squareGrid(dimX:number):CreasePattern{
+		this.grid = new SquareGrid(this, dimX);
+		return this;
+	}
+	rectangularGrid(dimX:number, dimY:number){
+		this.grid = new RectangularGrid(this, dimX, dimY);
+		return this;
+	}
+	diagonalGrid(dimX:number):CreasePattern{
+		this.grid = new DiagonalGrid(this, dimX);
+		return this;
+	}
+	rhombicGrid(dimX:number, dimY:number){
+		this.grid = new RhombicGrid(this, dimX, dimY);
+		return this;
+	}
+	parallelogramGrid(dimX:number, dimY:number, angle:number){
+		this.grid = new ParallelogramGrid(this, dimX, dimY, angle);
+		return this;
+	}
+	isometricGrid(dimX:number):CreasePattern{
+		this.grid = new IsometricGrid(this, dimX);
+		return this;
+	}
+	isoscelesGrid(dimX:number, dimY:number){
+		this.grid = new IsoscelesGrid(this, dimX, dimY);
+		return this;
+	}
+	triangularGrid(dimX:number, dimY:number, angle:number){
+		this.grid = new TriangularGrid(this, dimX, dimY, angle);
+		return this;
+	}
+	setGrid(grid:CPGrid){
+		if(grid === undefined || grid.cp !== this){ return this.noGrid(); }
+		this.grid = grid;
+		return this;
 	}
 
 	///////////////////////////////////////////////////////////////
@@ -704,38 +1074,31 @@ class CreasePattern extends PlanarGraph{
 		return this;
 	}
 	bookSymmetry():CreasePattern{
-		var center = this.boundary.center();
-		this.symmetry = new ReflectiveSymmetry(this, new Line(center, XY.J));
+		this.symmetry = new BookSymmetry(this);
 		return this;
 	}
 	doubleBookSymmetry():CreasePattern{
-		var center = this.boundary.center();
-		this.symmetry = new BiReflectiveSymmetry(this, new Line(center, XY.J), new Line(center, XY.I));
+		this.symmetry = new DoubleBookSymmetry(this);
 		return this;
 	}
 	diagonalSymmetry():CreasePattern{
-		var center = this.boundary.center();
-		this.symmetry = new ReflectiveSymmetry(this, new Line(center, new XY(0.7071, 0.7071)));
+		this.symmetry = new DiagonalSymmetry(this);
 		return this;
 	}
 	doubleDiagonalSymmetry():CreasePattern{
-		var center = this.boundary.center();
-		this.symmetry = new BiReflectiveSymmetry(this, new Line(center, new XY(0.7071, 0.7071)), new Line(center, new XY(0.7071, -0.7071)));
+		this.symmetry = new DoubleDiagonalSymmetry(this);
 		return this;
 	}
 	octagonalSymmetry():CreasePattern{
-		var center = this.boundary.center();
-		this.symmetry = new BiReflectiveSymmetry(this, new Line(center, XY.J), new Line(center, new XY(0.7071, 0.7071)));
+		this.symmetry = new OctagonalSymmetry(this);
 		return this;
 	}
 	rotationalSymmetry(order:number):CreasePattern{
-		var center = this.boundary.center();
-		this.symmetry = new RotationalSymmetry(this, center, order);
+		this.symmetry = new RotationalSymmetry(this, order);
 		return this;
 	}
-	tileSymmetry(dimX:number, dimY:number):CreasePattern{
-		var box:Rect = this.bounds();
-		this.symmetry = new TileSymmetry(this, box.size.width/dimX, box.size.height/dimY);
+	tileSymmetry(dimX:number, dimY?:number):CreasePattern{
+		this.symmetry = new TileSymmetry(this, dimX, dimY);
 		return this;
 	}
 	setSymmetryLine(a:any, b?:any, c?:any, d?:any):CreasePattern{
@@ -776,7 +1139,7 @@ class CreasePattern extends PlanarGraph{
 	}
 	axiom3(one:Crease, two:Crease):CPEdge[]{
 		return new Edge(one).infiniteLine().bisect(new Edge(two).infiniteLine())
-			.map(function(newLine:Line):CPEdge{ return new CPEdge(this, this.boundary.clipLine(newLine)); }, this);
+			.map(function(newLine:Line):CPEdge{ console.log(newLine); console.log(this.boundary.clipLine(newLine)); return new CPEdge(this, this.boundary.clipLine(newLine)); }, this);
 	}
 	axiom4(line:Crease, point:XY):CPEdge{
 		var newLine:Line = new Line(point, new Edge(line).vector().rotate90());
@@ -1137,10 +1500,9 @@ class CreasePattern extends PlanarGraph{
 	}
 
 	creaseGrid(i1:number, j1:number, i2:number, j2:number):Crease{
-		if(this.gridDimensions === undefined){ return undefined; }
-		var p1:CPGridPoint = this.gridPoints[(this.gridDimensions.dimY+1)*i1+j1];
-		var p2:CPGridPoint = this.gridPoints[(this.gridDimensions.dimY+1)*i2+j2];
-		if (p1 === undefined || p2 === undefined){ return undefined; }
+		if(this.grid === undefined){ return undefined; }
+		var p1:XY = this.grid.origin.add(this.grid.vectors[0].scale(i1)).add(this.grid.vectors[1].scale(j1));
+		var p2:XY = this.grid.origin.add(this.grid.vectors[0].scale(i2)).add(this.grid.vectors[1].scale(j2));
 		return this.creaseThroughPoints(p1, p2);
 	}
 
@@ -1493,32 +1855,9 @@ class CreasePattern extends PlanarGraph{
 		                 .reduce(function(prev,cur){return prev && cur;});
 	}
 
-	nearest(a:any,b?:any):{'point':XY,'node':PlanarNode,'edge':PlanarEdge,'face':PlanarFace,'junction':PlanarJunction,'sector':PlanarSector,'gridPoint':CPGridPoint,'gridLine':CPGridLine}{
-		var n = <{'point':XY,'node':PlanarNode,'edge':PlanarEdge,'face':PlanarFace,'junction':PlanarJunction,'sector':PlanarSector,'gridPoint':CPGridPoint,'gridLine':CPGridLine}>super.nearest(a,b);
-		if (this.gridDimensions === undefined){ return n; }
-		var box:Rect = this.bounds();
-		var dx:number = box.size.width/this.gridDimensions.dimX;
-		var dy:number = box.size.height/this.gridDimensions.dimY;
-		var fi:number = Math.floor((n.point.x - box.origin.x) * this.gridDimensions.dimX);
-		var ci:number = Math.ceil((n.point.x - box.origin.x) * this.gridDimensions.dimX);
-		var fj:number = Math.floor((n.point.y - box.origin.y) * this.gridDimensions.dimY);
-		var cj:number = Math.ceil((n.point.y - box.origin.y) * this.gridDimensions.dimY);
-		var i:number = (n.point.x - fi * dx <= ci * dx - n.point.x) ? fi : ci;
-		var j:number = (n.point.y - fj * dy <= cj * dy - n.point.y) ? fj : cj;
-		if (i >= 0 && i <= this.gridDimensions.dimX && j >= 0 && j <= this.gridDimensions.dimY){
-			n.gridPoint = this.gridPoints[(this.gridDimensions.dimY+1)*i+j];
-			if (i % this.gridDimensions.dimX != 0 || j % this.gridDimensions.dimY != 0){
-				var line1:CPGridLine = this.gridLines[i-1];
-				var line2:CPGridLine = this.gridLines[this.gridDimensions.dimX+j-2];
-				if (i % this.gridDimensions.dimX == 0){ n.gridLine = line2; }
-				else if (j % this.gridDimensions.dimY == 0){ n.gridLine = line1; }
-				else {
-					var d1:number = line1.nearestPoint(n.point).distanceTo(n.point);
-					var d2:number = line2.nearestPoint(n.point).distanceTo(n.point);
-					n.gridLine = d1 <= d2 ? line1 : line2;
-				}
-			}
-		}
+	nearest(a:any,b?:any):{'node':PlanarNode,'edge':PlanarEdge,'face':PlanarFace,'junction':PlanarJunction,'sector':PlanarSector}{
+		var n = super.nearest(a,b);
+		if (this.grid !== undefined){ Object.assign(n, this.grid.nearest(gimme1XY(a,b))); }
 		return n;
 	}
 
@@ -1714,7 +2053,7 @@ class CreasePattern extends PlanarGraph{
 				default: return 0;
 			}
 		},this);
-		if (this.gridDimensions !== undefined){ file["rabbitear:gridDimensions"] = [this.gridDimensions.dimX, this.gridDimensions.dimY]; }
+		if (this.grid !== undefined){ file["rabbitear:gridDimensions"] = this.grid.serialize(); }
 		if (this.symmetry !== undefined){ file["rabbitear:symmetry"] = this.symmetry.serialize(); }
 		return file;
 	}
@@ -1786,10 +2125,7 @@ class CreasePattern extends PlanarGraph{
 		this.clean(epsilon);
 
 		if (file["rabbitear:symmetry"] !== undefined) { this.symmetry = CPSymmetry.deserialize(this, file["rabbitear:symmetry"]); }
-		if (file["rabbitear:grid"] !== undefined) {
-			var g:[number,number] = file["rabbitear:grid"];
-			this.setGrid(g[0], g[1]);
-		}
+		if (file["rabbitear:grid"] !== undefined) { this.grid = CPGrid.deserialize(this, file["rabbitear:grid"]); }
 		return this;
 	}
 
