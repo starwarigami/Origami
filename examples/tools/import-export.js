@@ -5,7 +5,7 @@ FOLD = require('fold');
 var creasePatternDidUpload;
 // DOWNLOAD: call this function pass 3 arguments: (creasepattern, "filename without extension", "extension")
 // valid extensions: svg, fold, opx
-var downloadCreasePattern; 
+var downloadCreasePattern;
 
 ////////////////////////
 // UPLOAD
@@ -68,7 +68,7 @@ function loadSVGToCPUsingPaperJS(file, callback, epsilon){
 
 function downloadCreasePattern(cp, filename, extension){
 	var supportedFileTypes = ['fold', 'svg', 'opx'];
-	if(filename == "" || filename == undefined){ filename = "creasepattern"; }
+	if(filename == "" || filename == undefined){ filename = cp.name != undefined && cp.name.trim().length > 0 ? cp.name.trim() : "creasepattern"; }
 	if(supportedFileTypes.indexOf(extension) == -1){ throw "downloadCreasePattern does not support file format, or function is improperly called."; }
 	var fullname = [filename, extension].join('.');
 	switch(extension){
@@ -92,7 +92,7 @@ function downloadCreasePattern(cp, filename, extension){
 
 function downloadFolded(cp, filename, extension){
 	var supportedFileTypes = ['fold', 'svg'];
-	if(filename == "" || filename == undefined){ filename = "folded"; }
+	if(filename == "" || filename == undefined){ filename = cp.name != undefined && cp.name.trim().length > 0 ? cp.name.trim() + ".folded" : "folded"; }
 	if(supportedFileTypes.indexOf(extension) == -1){ throw "downloadFolded does not support file format, or function is improperly called."; }
 	var fullname = [filename, extension].join('.');
 	switch(extension){

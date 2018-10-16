@@ -1,0 +1,332 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<link href="../lib/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+<link href="nav.css" rel="stylesheet">
+<link href="style.css" rel="stylesheet">
+</head>
+<body>
+
+<nav>
+	<ul>
+	<li></a></li>
+	<li class="dropdown">
+		<a href="#" class="">File</a>
+		<div class="dropdown-content">
+		<a href="#" id="menu-file-new">New</a>
+		<a href="#" id="menu-file-properties">Properties</a>
+		<a href="#" id="menu-file-clear">Clear</a>
+		<a href="#" id="load-file">Import</a>
+		<a href="#" id="menu-file-export-fold">Export *.fold</a>
+		<a href="#" id="menu-file-export-svg">Export *.svg</a>
+	</li>
+	</ul>
+</nav>
+
+<div id="modal-crease-window" class="control-panel">
+	<div class="modal-content">
+		<div class="modal-header">
+			<div class="btn-group crease-selector-group" id="radio-input-mode" data-toggle="buttons">
+				<label class="btn btn-md btn-outline-light active">
+					<input type="radio" id="radio-button-add-crease" autocomplete="off" checked>crease
+				</label>
+				<label class="btn btn-md btn-outline-light">
+					<input type="radio" id="radio-button-remove-crease" autocomplete="off">uncrease
+				</label>
+				<label class="btn btn-md btn-outline-light">
+					<input type="radio" id="radio-button-flip-crease" autocomplete="off">flip
+				</label>
+			</div>
+
+		</div>
+		<div class="modal-body sidenav">
+			<div id="add-crease-sub-menu">
+				<div id="radio-input-crease" data-toggle="buttons">
+				<label class="btn btn-outline-secondary btn-sm btn-crease active">
+					<input type="radio" id="radio-button-between-points" autocomplete="off" checked>between points
+				</label>
+				<br><label class="btn btn-outline-secondary btn-sm btn-crease">
+					<input type="radio" id="radio-button-point-to-point" autocomplete="off">point to point
+				</label>
+				<br><label class="btn btn-outline-secondary btn-sm btn-crease">
+					<input type="radio" id="radio-button-edge-to-edge" autocomplete="off">edge to edge
+				</label>
+				<br><label class="btn btn-outline-secondary btn-sm btn-crease">
+					<input type="radio" id="radio-button-bisect-sector" autocomplete="off">bisect sector
+				</label>
+				<br><label class="btn btn-outline-secondary btn-sm btn-crease">
+					<input type="radio" id="radio-button-pleat-between-edges" autocomplete="off">pleat
+				</label>
+				<br><label class="btn btn-outline-secondary btn-sm btn-crease">
+					<input type="radio" id="radio-button-rabbit-ear" autocomplete="off">rabbit ear
+				</label>
+				<br><label class="btn btn-outline-secondary btn-sm btn-crease">
+					<input type="radio" id="radio-button-kawasaki" autocomplete="off">kawasaki collapse
+				</label>
+				<br><label class="btn btn-outline-secondary btn-sm btn-crease">
+					<input type="radio" id="radio-button-perpendicular" autocomplete="off">perpendicular
+				</label>
+				</div>
+				<hr>
+				<div id="modifier-bisect">
+					<h4>ray modifier</h4>
+					<div class="btn-group" id="radio-input-mode" data-toggle="buttons">
+						<label class="btn btn-sm btn-outline-secondary active">
+							<input type="radio" name="options" id="radio-button-" autocomplete="off" checked>Reflect
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-" autocomplete="off">Stop
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-" autocomplete="off">None
+						</label>
+					</div>
+				</div>
+				<div id="modifier-between-points">
+					<h4>segment modifier</h4>
+					<div class="btn-group" id="radio-input-modifier-between-points" data-toggle="buttons">
+						<label class="btn btn-sm btn-outline-secondary active">
+							<input type="radio" name="options" id="radio-button-modifier-between-points-full" autocomplete="off" checked>full page
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-modifier-between-points-segment" autocomplete="off">segment
+						</label>
+					</div>
+				</div>
+				<div id="modifier-pleat">
+					<h4>pleat modifier</h4>
+					<div class="form-group row">
+						<label for="input-pleat-count" class="col-sm-4 col-form-label">Pleats</label>
+						<div class="col-sm-8">
+							<input type="" class="form-control" id="input-pleat-count" placeholder="#" value="8">
+						</div>
+					</div>
+				</div>
+				<div id="modifier-perpendicular">
+					<h4>perpendicular modifier</h4>
+					<div class="btn-group" id="radio-input-modifier-perpendicular" data-toggle="buttons">
+						<label class="btn btn-sm btn-outline-secondary active">
+							<input type="radio" name="options" id="radio-button-modifier-perpendicular-full" autocomplete="off" checked>full page
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-modifier-perpendicular-segment" autocomplete="off">segment
+						</label>
+					</div>
+				</div>
+				<div id="toolbar-select-line">
+					<h4>line selection</h4>
+					<div class="btn-group" id="radio-input-toolbar-select-line" data-toggle="buttons">
+						<label class="btn btn-sm btn-outline-secondary active">
+							<input type="radio" name="options" id="radio-button-toolbar-select-line-crease" autocomplete="off" checked>crease
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-toolbar-select-line-grid" autocomplete="off">grid
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-toolbar-select-line-perpendicular" autocomplete="off">perpendicular
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-toolbar-select-line-parallel" autocomplete="off">parallel
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-toolbar-select-line-through" autocomplete="off">through
+						</label>
+					</div>
+				</div>
+				<div id="toolbar-select-point">
+					<h4>point selection</h4>
+					<div class="btn-group" id="radio-input-toolbar-select-point" data-toggle="buttons">
+						<label class="btn btn-sm btn-outline-secondary active">
+							<input type="radio" name="options" id="radio-button-toolbar-select-point-endpoint" autocomplete="off" checked>endpoint
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-toolbar-select-point-grid" autocomplete="off">grid
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-toolbar-select-point-midpoint" autocomplete="off">midpoint
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-toolbar-select-point-on" autocomplete="off">on
+						</label>
+						<label class="btn btn-sm btn-outline-secondary">
+							<input type="radio" name="options" id="radio-button-toolbar-select-point-none" autocomplete="off">none
+						</label>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+
+<div id="canvas-container">
+	<canvas id="canvas" resize></canvas>
+</div>
+
+<div id="modal-fold-window" class="control-panel">
+	<div class="modal-content">
+		<div class="modal-header"><h4 class="modal-title">FLAT FOLDED</h4></div>
+		<div class="modal-fold-body">
+			<canvas id="canvas-folded"></canvas>
+		</div>
+	</div>
+</div>
+
+<div id="modal-new-cp-window" class="control-panel control-panel-large">
+	<div class="modal-content">
+		<div class="modal-header"><h4 class="modal-title">New Crease Pattern</h4></div>
+		<div class="modal-body">
+			<form>
+			<div class="form-group">
+				<label for="new-cp-shape">Shape:</label>
+ 				<select class="form-control" id="new-cp-shape">
+				<option>square</option>
+				<option>rectangle</option>
+				<option>right triangle</option>
+				<option>isosceles triangle</option>
+				<option>regular polygon</option>
+				</select>
+			</div>
+			<div id="new-cp-input-dimensions" class="form-group">
+				<label for="new-cp-dimensions">Dimensions:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="new-cp-dimensions" placeholder="[width,height]">
+				</div>
+			</div>
+			<div id="new-cp-input-polygon-sides" class="form-group row">
+				<label for="new-cp-polygon-sides" class="col-sm-4 col-form-label">sides</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="new-cp-polygon-sides" placeholder="#">
+				</div>
+			</div>
+			<button type="button" id="new-cp-button-cancel" class="btn btn-secondary float-right">Cancel</button>
+			<button type="button" id="new-cp-button-ok" class="btn btn-primary float-right">OK</button>
+		</div>
+	</div>
+</div>
+
+<div id="modal-properties-window" class="control-panel control-panel-large">
+	<div class="modal-content">
+		<div class="modal-header"><h4 class="modal-title">Properties</h4></div>
+		<div class="modal-body">
+			<form>
+			<div id="properties-input-name" class="form-group">
+				<label for="properties-name">Name:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-name" placeholder="[creasepattern]">
+				</div>
+			</div>
+			<div class="form-group">
+				<label for="properties-grid">Grid:</label>
+ 				<select class="form-control" id="properties-grid">
+					<option>none</option>
+					<option>square</option>
+					<option>rectangular</option>
+					<option>diagonal</option>
+					<option>isometric</option>
+					<option>parallelogram</option>
+					<option>rhombic</option>
+					<option>isosceles</option>
+					<option>triangular</option>
+					<option>custom</option>
+				</select>
+			</div>
+			<div id="properties-input-grid-dimensions" class="form-group row">
+				<label for="properties-grid" class="col-sm-4 col-form-label">Dimensions:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-grid-dimensions" placeholder="[dimX,dimY]">
+				</div>
+			</div>
+			<div id="properties-input-grid-angle" class="form-group row">
+				<label for="properties-grid-angle" class="col-sm-4 col-form-label">Angle:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-grid-angle" placeholder="#">
+				</div>
+			</div>
+			<div id="properties-input-grid-custom-vectors" class="form-group row">
+				<label for="properties-grid-grid-vectors" class="col-sm-4 col-form-label">Vectors:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-grid-custom-vectors" placeholder="[[x,y],[x,y]]">
+				</div>
+			</div>
+			<div id="properties-input-grid-custom-origin" class="form-group row">
+				<label for="properties-grid-custom-origin" class="col-sm-4 col-form-label">Origin:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-grid-custom-origin" placeholder="[x,y]">
+				</div>
+			</div>
+			<div id="properties-input-grid-custom-triangulate" class="form-group">
+				<label for="properties-grid-custom-triangulate">Triangulate:</label>
+ 				<select class="form-control" id="properties-grid-custom-triangulate">
+				<option>no</option>
+				<option>yes</option>
+				</select>
+			</div>
+			<div class="form-group">
+				<label for="properties-symmetry">Symmetry:</label>
+ 				<select class="form-control" id="properties-symmetry">
+					<option>none</option>
+					<option>book</option>
+					<option>double-book</option>
+					<option>diagonal</option>
+					<option>double-diagonal</option>
+					<option>octagonal</option>
+					<option>rotational</option>
+					<option>tile</option>
+					<option>custom</option>
+				</select>
+			</div>
+			<div id="properties-input-symmetry-rotational-order" class="form-group row">
+				<label for="properties-symmetry-rotational-order" class="col-sm-4 col-form-label">Order:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-symmetry-rotational-order" placeholder="#">
+				</div>
+			</div>
+			<div id="properties-input-symmetry-rotational-center" class="form-group row">
+				<label for="properties-symmetry-rotational-center" class="col-sm-4 col-form-label">Center:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-symmetry-rotational-center" placeholder="[x,y]">
+				</div>
+			</div>
+			<div id="properties-input-symmetry-tile" class="form-group row">
+				<label for="properties-symmetry-tile" class="col-sm-4 col-form-label">Tile:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-symmetry-tile" placeholder="[dimx,dimY]">
+				</div>
+			</div>
+			<div id="properties-input-symmetry-custom-point" class="form-group row">
+				<label for="properties-symmetry-custom-point" class="col-sm-4 col-form-label">Point:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-symmetry-custom-point" placeholder="[x,y]">
+				</div>
+			</div>
+			<div id="properties-input-symmetry-custom-vectors" class="form-group row">
+				<label for="properties-symmetry-custom-vectors" class="col-sm-4 col-form-label">Vectors:</label>
+				<div class="col-sm-8">
+					<input type="" class="form-control" id="properties-symmetry-custom-vectors" placeholder="[[x,y]]">
+				</div>
+			</div>
+			</form>
+			<button type="button" id="properties-button-cancel" class="btn btn-secondary float-right">Cancel</button>
+			<button type="button" id="properties-button-ok" class="btn btn-primary float-right">OK</button>
+		</div>
+	</div>
+</div>
+</body>
+
+<script type="text/javascript" src="jquery-3.3.1.min.js"></script>
+<script type="text/javascript" src="jquery-ui.min.js"></script>
+<script type="text/javascript" src="bootstrap.bundle.min.js"></script>
+<script type="text/javascript" src="../tools/drag-and-drop.js"></script>
+<script type="text/javascript" src="../tools/file-upload-button.js"></script>
+<script type="text/javascript" src="../../lib/fold.js"></script>
+<script type="text/javascript" src="../tools/import-export.js"></script>
+<script type="text/javascript" src="../../lib/paper-full.min.js"></script>
+<script type="text/javascript" src="../../cp.js"></script>
+<script type="text/javascript" src="../../cp.paperjs.js"></script>
+<script type="text/javascript" src="diagramatica.js"></script>
+
+</html>
